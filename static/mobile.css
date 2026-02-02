@@ -1,0 +1,253 @@
+/* Mobile Responsive Design Improvements for AI Betting Bot */
+
+/* Base mobile-first styles */
+@media (max-width: 640px) {
+    /* Header adjustments */
+    header .container {
+        padding: 0 1rem;
+    }
+    
+    header h1 {
+        font-size: 1.5rem;
+    }
+    
+    header .flex {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    /* Stats cards - single column on mobile */
+    .grid.grid-cols-1.md\\:grid-cols-4 {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    /* Main content grid */
+    .grid.grid-cols-1.lg\\:grid-cols-3 {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    /* League selector - 2 columns on mobile */
+    .grid.grid-cols-2.md\\:grid-cols-4 {
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+    }
+    
+    .league-btn {
+        font-size: 0.75rem;
+        padding: 0.5rem 0.25rem;
+    }
+    
+    /* Match cards */
+    .bg-gray-700.rounded-lg.p-4 {
+        padding: 1rem;
+    }
+    
+    .bg-gray-700.rounded-lg.p-4 h3 {
+        font-size: 1rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    /* Value bet cards */
+    .grid.grid-cols-2.md\\:grid-cols-4 {
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+        font-size: 0.75rem;
+    }
+    
+    /* Auto betting form */
+    .grid.grid-cols-2 {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    /* Buttons */
+    button {
+        width: 100%;
+        margin-bottom: 0.5rem;
+    }
+    
+    .flex.space-x-3 {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    /* Modal adjustments */
+    .fixed.inset-0 .max-w-md {
+        margin: 1rem;
+        max-width: calc(100% - 2rem);
+    }
+    
+    /* Chart container */
+    .relative[style*="height: 300px"] {
+        height: 200px !important;
+    }
+    
+    /* Toast notifications */
+    .fixed.bottom-4.right-4 {
+        left: 1rem;
+        right: 1rem;
+        bottom: 1rem;
+    }
+}
+
+/* Tablet styles */
+@media (min-width: 641px) and (max-width: 1024px) {
+    /* Stats cards - 2x2 grid on tablet */
+    .grid.grid-cols-1.md\\:grid-cols-4 {
+        grid-template-columns: 1fr 1fr;
+    }
+    
+    /* Main content - 2 columns on tablet */
+    .grid.grid-cols-1.lg\\:grid-cols-3 {
+        grid-template-columns: 2fr 1fr;
+    }
+    
+    /* League selector - 3 columns on tablet */
+    .grid.grid-cols-2.md\\:grid-cols-4 {
+        grid-template-columns: 1fr 1fr 1fr;
+    }
+}
+
+/* Landscape mobile adjustments */
+@media (max-width: 640px) and (orientation: landscape) {
+    /* Reduce spacing in landscape */
+    .container.mx-auto.px-4.py-8 {
+        padding-top: 1rem;
+        padding-bottom: 1rem;
+    }
+    
+    /* Compact header */
+    header {
+        padding: 0.5rem 0;
+    }
+    
+    header h1 {
+        font-size: 1.25rem;
+    }
+    
+    /* Smaller cards in landscape */
+    .bg-gray-800.rounded-lg.p-6 {
+        padding: 1rem;
+    }
+}
+
+/* Touch-friendly improvements */
+@media (hover: none) and (pointer: coarse) {
+    /* Larger touch targets */
+    button, .league-btn {
+        min-height: 44px;
+        padding: 0.75rem 1rem;
+    }
+    
+    /* Better spacing for touch */
+    .space-y-4 > * + * {
+        margin-top: 1.5rem;
+    }
+    
+    /* Larger form inputs */
+    input[type="text"], input[type="number"], select {
+        min-height: 44px;
+        font-size: 16px; /* Prevent zoom on iOS */
+    }
+}
+
+/* High DPI displays */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    /* Crisper icons */
+    .fas, .fab {
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+}
+
+/* Dark mode optimizations for mobile */
+@media (prefers-color-scheme: dark) and (max-width: 640px) {
+    /* Better contrast for mobile */
+    .text-gray-400 {
+        color: #a0a0a0;
+    }
+    
+    .bg-gray-700 {
+        background-color: #2a2a2a;
+    }
+    
+    .bg-gray-800 {
+        background-color: #1a1a1a;
+    }
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* Print styles for mobile */
+@media print and (max-width: 640px) {
+    /* Hide unnecessary elements */
+    button, .fixed, .bg-gray-600 {
+        display: none !important;
+    }
+    
+    /* Optimize text for print */
+    body {
+        font-size: 12pt;
+        line-height: 1.4;
+    }
+    
+    /* Ensure content fits */
+    .container {
+        max-width: 100%;
+        padding: 0;
+    }
+}
+
+/* Performance optimizations for mobile */
+@media (max-width: 640px) {
+    /* Reduce shadows and effects for better performance */
+    .shadow-lg {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    
+    /* Simplify animations */
+    .transition {
+        transition: all 0.2s ease;
+    }
+    
+    /* Optimize images */
+    img {
+        max-width: 100%;
+        height: auto;
+    }
+}
+
+/* iOS Safari specific fixes */
+@supports (-webkit-touch-callout: none) {
+    /* Prevent zoom on input focus */
+    input[type="text"], input[type="number"], select {
+        font-size: 16px;
+    }
+    
+    /* Fix viewport issues */
+    body {
+        -webkit-text-size-adjust: 100%;
+    }
+}
+
+/* Android Chrome specific fixes */
+@media screen and (-webkit-min-device-pixel-ratio: 0) and (min-resolution: .001dpcm) {
+    /* Fix scrolling issues */
+    body {
+        overflow-x: hidden;
+    }
+    
+    /* Improve touch scrolling */
+    .overflow-y-auto {
+        -webkit-overflow-scrolling: touch;
+    }
+}

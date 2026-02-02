@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Betting Assistant Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/mobile.css">
+    <!-- Mobile optimizations -->
+    <meta name="theme-color" content="#111827">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <!-- PWA manifest -->
+    <link rel="manifest" href="/static/manifest.json">
+</head>
+<body class="bg-gray-900 text-white">
+    <!-- Header -->
+    <header class="bg-gray-800 shadow-lg">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <i class="fas fa-chart-line text-green-500 text-2xl"></i>
+                    <h1 class="text-2xl font-bold">AI Betting Assistant</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span class="text-sm text-gray-400">Last Updated: <span id="lastUpdated">--</span></span>
+                    <button onclick="refreshData()" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg transition">
+                        <i class="fas fa-sync-alt mr-2"></i>Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-8">
+        <!-- Stats Cards -->
+        <section class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="bg-gray-800 rounded-lg p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-sm">Total Analyzed</p>
+                        <p class="text-2xl font-bold" id="totalAnalyzed">--</p>
+                    </div>
+                    <i class="fas fa-search text-blue-500 text-2xl"></i>
+                </div>
+            </div>
+            <div class="bg-gray-800 rounded-lg p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-sm">Value Bets</p>
+                        <p class="text-2xl font-bold text-green-500" id="valueBets">--</p>
+                    </div>
+                    <i class="fas fa-gem text-green-500 text-2xl"></i>
+                </div>
+            </div>
+            <div class="bg-gray-800 rounded-lg p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-sm">Success Rate</p>
+                        <p class="text-2xl font-bold text-yellow-500" id="successRate">--</p>
+                    </div>
+                    <i class="fas fa-percentage text-yellow-500 text-2xl"></i>
+                </div>
+            </div>
+            <div class="bg-gray-800 rounded-lg p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-400 text-sm">Average ROI</p>
+                        <p class="text-2xl font-bold text-purple-500" id="avgROI">--</p>
+                    </div>
+                    <i class="fas fa-chart-line text-purple-500 text-2xl"></i>
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Content Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Value Bets Section -->
+            <section class="lg:col-span-2">
+                <!-- League Selector -->
+                <div class="bg-gray-800 rounded-lg p-6 mb-6">
+                    <h2 class="text-xl font-bold mb-4 flex items-center">
+                        <i class="fas fa-trophy text-yellow-500 mr-2"></i>
+                        Select League
+                    </h2>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <button onclick="loadLeagueMatches('premier_league')" 
+                            class="league-btn bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded text-sm transition">
+                            Premier League
+                        </button>
+                        <button onclick="loadLeagueMatches('la_liga')" 
+                            class="league-btn bg-orange-600 hover:bg-orange-700 px-3 py-2 rounded text-sm transition">
+                            La Liga
+                        </button>
+                        <button onclick="loadLeagueMatches('serie_a')" 
+                            class="league-btn bg-green-600 hover:bg-green-700 px-3 py-2 rounded text-sm transition">
+                            Serie A
+                        </button>
+                        <button onclick="loadLeagueMatches('bundesliga')" 
+                            class="league-btn bg-red-600 hover:bg-red-700 px-3 py-2 rounded text-sm transition">
+                            Bundesliga
+                        </button>
+                        <button onclick="loadLeagueMatches('ligue_1')" 
+                            class="league-btn bg-purple-600 hover:bg-purple-700 px-3 py-2 rounded text-sm transition">
+                            Ligue 1
+                        </button>
+                        <button onclick="loadLeagueMatches('champions_league')" 
+                            class="league-btn bg-indigo-600 hover:bg-indigo-700 px-3 py-2 rounded text-sm transition">
+                            Champions League
+                        </button>
+                        <button onclick="loadLeagueMatches('europa_league')" 
+                            class="league-btn bg-pink-600 hover:bg-pink-700 px-3 py-2 rounded text-sm transition">
+                            Europa League
+                        </button>
+                        <button onclick="loadLeagueMatches('eredivisie')" 
+                            class="league-btn bg-teal-600 hover:bg-teal-700 px-3 py-2 rounded text-sm transition">
+                            Eredivisie
+                        </button>
+                        <button onclick="loadLeagueMatches('casino_games')" 
+                            class="league-btn bg-yellow-600 hover:bg-yellow-700 px-3 py-2 rounded text-sm transition">
+                            🎰 Casino Games
+                        </button>
+                        <button onclick="loadLeagueMatches('slot_games')" 
+                            class="league-btn bg-purple-700 hover:bg-purple-800 px-3 py-2 rounded text-sm transition">
+                            🎰 Slot Games
+                        </button>
+                        <button onclick="loadLeagueMatches('poker_games')" 
+                            class="league-btn bg-red-700 hover:bg-red-800 px-3 py-2 rounded text-sm transition">
+                            🃏 Poker Games
+                        </button>
+                        <button onclick="loadLeagueMatches('virtual_sports')" 
+                            class="league-btn bg-green-700 hover:bg-green-800 px-3 py-2 rounded text-sm transition">
+                            🏃 Virtual Sports
+                        </button>
+                        <button onclick="loadLeagueMatches('esports')" 
+                            class="league-btn bg-indigo-700 hover:bg-indigo-800 px-3 py-2 rounded text-sm transition">
+                            🎮 Esports
+                        </button>
+                    </div>
+                </div>
+
+                <!-- League Matches -->
+                <div class="bg-gray-800 rounded-lg p-6 mb-6">
+                    <h2 class="text-xl font-bold mb-4 flex items-center">
+                        <i class="fas fa-futbol text-green-500 mr-2"></i>
+                        <span id="leagueTitle">All Matches</span>
+                    </h2>
+                    <div id="matchesContainer" class="space-y-4">
+                        <div class="text-center text-gray-400 py-8">
+                            <i class="fas fa-spinner fa-spin text-4xl mb-4"></i>
+                            <p>Loading matches...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gray-800 rounded-lg p-6">
+                    <h2 class="text-xl font-bold mb-4 flex items-center">
+                        <i class="fas fa-gem text-green-500 mr-2"></i>
+                        Today's Value Bets
+                    </h2>
+                    <div id="valueBetsContainer" class="space-y-4">
+                        <div class="text-center text-gray-400 py-8">
+                            <i class="fas fa-spinner fa-spin text-4xl mb-4"></i>
+                            <p>Loading value bets...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Performance Chart -->
+                <div class="bg-gray-800 rounded-lg p-6 mt-8">
+                    <h2 class="text-xl font-bold mb-4 flex items-center">
+                        <i class="fas fa-chart-bar text-blue-500 mr-2"></i>
+                        Monthly Performance
+                    </h2>
+                    <div class="relative" style="height: 300px;">
+                        <canvas id="performanceChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Sidebar -->
+            <aside class="space-y-8">
+                <!-- Match Analyzer -->
+                <div class="bg-gray-800 rounded-lg p-6">
+                    <h2 class="text-xl font-bold mb-4 flex items-center">
+                        <i class="fas fa-calculator text-purple-500 mr-2"></i>
+                        Match Analyzer
+                    </h2>
+                    <form id="analyzeForm" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Home Team</label>
+                            <input type="text" id="homeTeam" required
+                                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                                placeholder="Manchester United">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Away Team</label>
+                            <input type="text" id="awayTeam" required
+                                class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                                placeholder="Arsenal">
+                        </div>
+                        <div class="grid grid-cols-3 gap-2">
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Home Odds</label>
+                                <input type="number" id="homeOdds" required step="0.01"
+                                    class="w-full bg-gray-700 border border-gray-600 rounded-lg px-2 py-2 focus:outline-none focus:border-blue-500"
+                                    placeholder="2.10">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Draw Odds</label>
+                                <input type="number" id="drawOdds" required step="0.01"
+                                    class="w-full bg-gray-700 border border-gray-600 rounded-lg px-2 py-2 focus:outline-none focus:border-blue-500"
+                                    placeholder="3.40">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Away Odds</label>
+                                <input type="number" id="awayOdds" required step="0.01"
+                                    class="w-full bg-gray-700 border border-gray-600 rounded-lg px-2 py-2 focus:outline-none focus:border-blue-500"
+                                    placeholder="3.20">
+                            </div>
+                        </div>
+                        <button type="submit" 
+                            class="w-full bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg transition">
+                            <i class="fas fa-search mr-2"></i>Analyze Match
+                        </button>
+                    </form>
+                    <div id="analysisResult" class="mt-4 hidden"></div>
+                </div>
+
+                <!-- Auto Betting Panel -->
+                <div class="bg-gray-800 rounded-lg p-6 mb-6">
+                    <h2 class="text-xl font-bold mb-4 flex items-center">
+                        <i class="fas fa-robot text-red-500 mr-2"></i>
+                        Auto Betting
+                    </h2>
+                    <form id="autoBetForm" class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Stake per Bet (KES)</label>
+                                <input type="number" id="stake" required min="10" step="10"
+                                    class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                                    value="100">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Max Odds</label>
+                                <input type="number" id="maxOdds" required min="1.01" step="0.1"
+                                    class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                                    value="5.0">
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Min Value (%)</label>
+                                <input type="number" id="minValue" required min="0" step="0.5"
+                                    class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                                    value="5.0">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Auto Confirm</label>
+                                <select id="autoConfirm" 
+                                    class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500">
+                                    <option value="false">Review First</option>
+                                    <option value="true">Place Automatically</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="flex space-x-3">
+                            <button type="submit" 
+                                class="flex-1 bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg transition">
+                                <i class="fas fa-play mr-2"></i>Start Auto Betting
+                            </button>
+                            <button type="button" onclick="stopAutoBetting()" 
+                                class="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded-lg transition">
+                                <i class="fas fa-stop mr-2"></i>Stop
+                            </button>
+                        </div>
+                    </form>
+                    <div id="autoBetResult" class="mt-4 hidden"></div>
+                </div>
+
+                <!-- Betting History -->
+                <div class="bg-gray-800 rounded-lg p-6">
+                    <h2 class="text-xl font-bold mb-4 flex items-center">
+                        <i class="fas fa-history text-blue-500 mr-2"></i>
+                        Betting History
+                    </h2>
+                    <div id="bettingHistoryContainer" class="space-y-3">
+                        <div class="text-center text-gray-400 py-8">
+                            <i class="fas fa-spinner fa-spin text-4xl mb-4"></i>
+                            <p>Loading betting history...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="bg-gray-800 rounded-lg p-6">
+                    <h2 class="text-xl font-bold mb-4 flex items-center">
+                        <i class="fas fa-bolt text-yellow-500 mr-2"></i>
+                        Quick Actions
+                    </h2>
+                    <div class="space-y-3">
+                        <button onclick="trainModel()" 
+                            class="w-full bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg transition text-left">
+                            <i class="fas fa-brain mr-2"></i>Train AI Model
+                        </button>
+                        <button onclick="exportData()" 
+                            class="w-full bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg transition text-left">
+                            <i class="fas fa-download mr-2"></i>Export Data
+                        </button>
+                        <button onclick="showSettings()" 
+                            class="w-full bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded-lg transition text-left">
+                            <i class="fas fa-cog mr-2"></i>Settings
+                        </button>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-4 right-4 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg hidden">
+        <div class="flex items-center">
+            <i class="fas fa-check-circle mr-2"></i>
+            <span id="toastMessage">Success!</span>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let performanceChart = null;
+
+        // Load league matches
+        async function loadLeagueMatches(leagueId) {
+            try {
+                // Update active button styling
+                document.querySelectorAll('.league-btn').forEach(btn => {
+                    btn.classList.remove('ring-2', 'ring-white');
+                });
+                event.target.classList.add('ring-2', 'ring-white');
+                
+                const response = await fetch(`/api/league-matches/${leagueId}`);
+                const result = await response.json();
+                
+                const container = document.getElementById('matchesContainer');
+                const titleElement = document.getElementById('leagueTitle');
+                
+                if (result.success) {
+                    // Update title
+                    const leagueNames = {
+                        'premier_league': 'Premier League',
+                        'la_liga': 'La Liga',
+                        'serie_a': 'Serie A',
+                        'bundesliga': 'Bundesliga',
+                        'ligue_1': 'Ligue 1',
+                        'champions_league': 'Champions League',
+                        'europa_league': 'Europa League',
+                        'eredivisie': 'Eredivisie',
+                        'casino_games': '🎰 Casino Games',
+                        'slot_games': '🎰 Slot Games',
+                        'poker_games': '🃏 Poker Games',
+                        'virtual_sports': '🏃 Virtual Sports',
+                        'esports': '🎮 Esports'
+                    };
+                    titleElement.textContent = `${leagueNames[leagueId]} Matches`;
+                    
+                    // Display matches
+                    container.innerHTML = result.data.map(match => `
+                        <div class="bg-gray-700 rounded-lg p-4 border-l-4 border-blue-500">
+                            <div class="flex justify-between items-start mb-2">
+                                <div>
+                                    <h3 class="font-bold text-lg">${match.home_team} vs ${match.away_team}</h3>
+                                    <p class="text-gray-400 text-sm">${match.league} • ${match.date}</p>
+                                </div>
+                                <button onclick="analyzeMatchFromLeague('${match.match_id}')" 
+                                    class="bg-purple-600 hover:bg-purple-700 px-3 py-1 rounded text-sm transition">
+                                    Analyze
+                                </button>
+                            </div>
+                            <div class="grid grid-cols-3 gap-4 text-sm">
+                                <div>
+                                    <p class="text-gray-400">Home</p>
+                                    <p class="font-bold">${match.home_odds}</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-400">Draw</p>
+                                    <p class="font-bold">${match.draw_odds}</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-400">Away</p>
+                                    <p class="font-bold">${match.away_odds}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                    
+                    // Load value bets for this league
+                    loadValueBetsForLeague(result.data);
+                } else {
+                    container.innerHTML = `
+                        <div class="text-center text-red-400 py-8">
+                            <i class="fas fa-exclamation-triangle text-4xl mb-4"></i>
+                            <p>Error loading matches</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading league matches:', error);
+                document.getElementById('matchesContainer').innerHTML = `
+                    <div class="text-center text-red-400 py-8">
+                        <i class="fas fa-exclamation-triangle text-4xl mb-4"></i>
+                        <p>Error loading matches</p>
+                    </div>
+                `;
+            }
+        }
+        
+        // Analyze match from league
+        async function analyzeMatchFromLeague(matchId) {
+            try {
+                const response = await fetch('/api/analyze-match', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ match_id: matchId })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast('Match analysis completed!', 'success');
+                    loadValueBets(); // Refresh value bets
+                } else {
+                    showToast('Analysis failed', 'error');
+                }
+            } catch (error) {
+                console.error('Error analyzing match:', error);
+                showToast('Analysis failed', 'error');
+            }
+        }
+        
+        // Load value bets for specific league
+        async function loadValueBetsForLeague(matchesData) {
+            try {
+                // Find value bets for the league matches
+                const value_bets = value_detector.find_value_bets(matchesData);
+                
+                const container = document.getElementById('valueBetsContainer');
+                
+                if (value_bets.length > 0) {
+                    container.innerHTML = value_bets.map(bet => `
+                        <div class="bg-gray-700 rounded-lg p-4 border-l-4 border-green-500">
+                            <div class="flex justify-between items-start mb-2">
+                                <div>
+                                    <h3 class="font-bold text-lg">${bet.home_team} vs ${bet.away_team}</h3>
+                                    <p class="text-gray-400 text-sm">${bet.league} • ${bet.date}</p>
+                                </div>
+                                <span class="bg-green-600 px-2 py-1 rounded text-sm">${bet.confidence}</span>
+                            </div>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                <div>
+                                    <p class="text-gray-400">Pick</p>
+                                    <p class="font-bold">${bet.recommended_outcome}</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-400">Odds</p>
+                                    <p class="font-bold">${bet.odds}</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-400">Value</p>
+                                    <p class="font-bold text-green-500">+${bet.value_margin}%</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-400">EV</p>
+                                    <p class="font-bold text-blue-500">${bet.expected_value}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = `
+                        <div class="text-center text-gray-400 py-8">
+                            <i class="fas fa-search text-4xl mb-4"></i>
+                            <p>No value bets found in this league</p>
+                            <p class="text-sm">Try selecting a different league</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading value bets for league:', error);
+            }
+        }
+
+        // Auto betting form submission
+        document.getElementById('autoBetForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = {
+                stake: parseFloat(document.getElementById('stake').value),
+                max_odds: parseFloat(document.getElementById('maxOdds').value),
+                min_value: parseFloat(document.getElementById('minValue').value),
+                auto_confirm: document.getElementById('autoConfirm').value === 'true'
+            };
+            
+            try {
+                const response = await fetch('/api/auto-bet', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                const result = await response.json();
+                const resultDiv = document.getElementById('autoBetResult');
+                
+                if (result.success) {
+                    const data = result.data;
+                    resultDiv.innerHTML = `
+                        <div class="bg-green-900 border border-green-700 rounded-lg p-4">
+                            <h3 class="font-bold text-green-400 mb-3">Auto Betting Started!</h3>
+                            <div class="grid grid-cols-2 gap-4 text-sm mb-3">
+                                <div>
+                                    <p class="text-gray-400">Bets Placed</p>
+                                    <p class="font-bold text-lg">${data.bet_count}</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-400">Total Stake</p>
+                                    <p class="font-bold text-lg">KES ${data.total_stake}</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-400">Potential Return</p>
+                                    <p class="font-bold text-lg text-green-400">KES ${data.total_potential_return.toFixed(2)}</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-400">Auto Confirm</p>
+                                    <p class="font-bold">${data.auto_confirm ? 'Yes' : 'No'}</p>
+                                </div>
+                            </div>
+                            <div class="space-y-2">
+                                <h4 class="font-semibold text-sm">Placed Bets:</h4>
+                                ${data.placed_bets.map(bet => `
+                                    <div class="bg-gray-800 rounded p-2 text-xs">
+                                        <div class="flex justify-between">
+                                            <span>${bet.teams}</span>
+                                            <span class="${bet.status === 'placed' ? 'text-green-400' : 'text-yellow-400'}">${bet.status}</span>
+                                        </div>
+                                        <div class="text-gray-400">
+                                            ${bet.pick} @ ${bet.odds} | Stake: KES ${bet.stake} | Return: KES ${bet.potential_return.toFixed(2)}
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                    showToast('Auto betting started successfully!', 'success');
+                    loadBettingHistory(); // Refresh history
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="bg-red-900 border border-red-700 rounded-lg p-4">
+                            <h3 class="font-bold text-red-400 mb-2">Auto Betting Failed</h3>
+                            <p class="text-sm">${result.error}</p>
+                        </div>
+                    `;
+                    showToast('Auto betting failed', 'error');
+                }
+                
+                resultDiv.classList.remove('hidden');
+            } catch (error) {
+                console.error('Error with auto betting:', error);
+                showToast('Auto betting failed', 'error');
+            }
+        });
+        
+        // Stop auto betting
+        function stopAutoBetting() {
+            document.getElementById('autoBetResult').innerHTML = `
+                <div class="bg-yellow-900 border border-yellow-700 rounded-lg p-4">
+                    <h3 class="font-bold text-yellow-400 mb-2">Auto Betting Stopped</h3>
+                    <p class="text-sm">Auto betting has been manually stopped.</p>
+                </div>
+            `;
+            document.getElementById('autoBetResult').classList.remove('hidden');
+            showToast('Auto betting stopped', 'info');
+        }
+        
+        // Load betting history
+        async function loadBettingHistory() {
+            try {
+                const response = await fetch('/api/betting-history');
+                const result = await response.json();
+                
+                const container = document.getElementById('bettingHistoryContainer');
+                
+                if (result.success && result.data.length > 0) {
+                    container.innerHTML = result.data.map(bet => `
+                        <div class="bg-gray-700 rounded-lg p-3">
+                            <div class="flex justify-between items-start mb-2">
+                                <div>
+                                    <h4 class="font-bold text-sm">${bet.match}</h4>
+                                    <p class="text-gray-400 text-xs">${bet.date}</p>
+                                </div>
+                                <span class="px-2 py-1 rounded text-xs ${bet.result === 'Won' ? 'bg-green-600' : 'bg-red-600'}">
+                                    ${bet.result}
+                                </span>
+                            </div>
+                            <div class="grid grid-cols-4 gap-2 text-xs">
+                                <div>
+                                    <p class="text-gray-400">Pick</p>
+                                    <p class="font-bold">${bet.pick}</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-400">Odds</p>
+                                    <p class="font-bold">${bet.odds}</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-400">Stake</p>
+                                    <p class="font-bold">KES ${bet.stake}</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-400">Profit</p>
+                                    <p class="font-bold ${bet.profit > 0 ? 'text-green-400' : 'text-red-400'}">
+                                        KES ${bet.profit.toFixed(2)}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = `
+                        <div class="text-center text-gray-400 py-8">
+                            <i class="fas fa-history text-4xl mb-4"></i>
+                            <p>No betting history available</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading betting history:', error);
+                document.getElementById('bettingHistoryContainer').innerHTML = `
+                    <div class="text-center text-red-400 py-8">
+                        <i class="fas fa-exclamation-triangle text-4xl mb-4"></i>
+                        <p>Error loading betting history</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            loadStatistics();
+            loadValueBets();
+            initPerformanceChart();
+            loadBettingHistory();
+        });
+
+        // Load statistics
+        async function loadStatistics() {
+            try {
+                const response = await fetch('/api/statistics');
+                const result = await response.json();
+                
+                if (result.success) {
+                    const stats = result.data;
+                    document.getElementById('totalAnalyzed').textContent = stats.total_bets_analyzed.toLocaleString();
+                    document.getElementById('valueBets').textContent = stats.value_bets_found;
+                    document.getElementById('successRate').textContent = (stats.success_rate * 100).toFixed(1) + '%';
+                    document.getElementById('avgROI').textContent = (stats.average_roi * 100).toFixed(1) + '%';
+                    document.getElementById('lastUpdated').textContent = new Date().toLocaleTimeString();
+                }
+            } catch (error) {
+                console.error('Error loading statistics:', error);
+            }
+        }
+
+        // Load value bets
+        async function loadValueBets() {
+            try {
+                const response = await fetch('/api/value-bets');
+                const result = await response.json();
+                
+                const container = document.getElementById('valueBetsContainer');
+                
+                if (result.success && result.data.length > 0) {
+                    container.innerHTML = result.data.map(bet => `
+                        <div class="bg-gray-700 rounded-lg p-4 border-l-4 border-green-500">
+                            <div class="flex justify-between items-start mb-2">
+                                <div>
+                                    <h3 class="font-bold text-lg">${bet.home_team} vs ${bet.away_team}</h3>
+                                    <p class="text-gray-400 text-sm">${bet.league} • ${bet.date}</p>
+                                </div>
+                                <span class="bg-green-600 px-2 py-1 rounded text-sm">${bet.confidence}</span>
+                            </div>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                <div>
+                                    <p class="text-gray-400">Pick</p>
+                                    <p class="font-bold">${bet.recommended_outcome}</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-400">Odds</p>
+                                    <p class="font-bold">${bet.odds}</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-400">Value</p>
+                                    <p class="font-bold text-green-500">+${bet.value_margin}%</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-400">EV</p>
+                                    <p class="font-bold text-blue-500">${bet.expected_value}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = `
+                        <div class="text-center text-gray-400 py-8">
+                            <i class="fas fa-search text-4xl mb-4"></i>
+                            <p>No value bets found at the moment</p>
+                            <p class="text-sm">Check back later for new opportunities</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading value bets:', error);
+                document.getElementById('valueBetsContainer').innerHTML = `
+                    <div class="text-center text-red-400 py-8">
+                        <i class="fas fa-exclamation-triangle text-4xl mb-4"></i>
+                        <p>Error loading value bets</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Initialize performance chart
+        function initPerformanceChart() {
+            const ctx = document.getElementById('performanceChart').getContext('2d');
+            performanceChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Jan', 'Feb', 'Mar'],
+                    datasets: [{
+                        label: 'ROI %',
+                        data: [8.2, 5.4, 7.1],
+                        backgroundColor: 'rgba(59, 130, 246, 0.5)',
+                        borderColor: 'rgba(59, 130, 246, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            },
+                            ticks: {
+                                color: 'rgba(255, 255, 255, 0.7)'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            },
+                            ticks: {
+                                color: 'rgba(255, 255, 255, 0.7)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: 'rgba(255, 255, 255, 0.9)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Analyze match form submission
+        document.getElementById('analyzeForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = {
+                home_team: document.getElementById('homeTeam').value,
+                away_team: document.getElementById('awayTeam').value,
+                home_odds: parseFloat(document.getElementById('homeOdds').value),
+                draw_odds: parseFloat(document.getElementById('drawOdds').value),
+                away_odds: parseFloat(document.getElementById('awayOdds').value)
+            };
+            
+            try {
+                const response = await fetch('/api/analyze-match', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                const result = await response.json();
+                const resultDiv = document.getElementById('analysisResult');
+                
+                if (result.success) {
+                    if (result.data.has_value) {
+                        const bet = result.data.match;
+                        resultDiv.innerHTML = `
+                            <div class="bg-green-900 border border-green-700 rounded-lg p-4">
+                                <h3 class="font-bold text-green-400 mb-2">Value Bet Detected!</h3>
+                                <div class="space-y-2 text-sm">
+                                    <p><strong>Recommendation:</strong> ${bet.recommended_outcome}</p>
+                                    <p><strong>Odds:</strong> ${bet.odds}</p>
+                                    <p><strong>AI Probability:</strong> ${bet.ai_probability}%</p>
+                                    <p><strong>Value Margin:</strong> +${bet.value_margin}%</p>
+                                    <p><strong>Expected Value:</strong> ${bet.expected_value}</p>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        resultDiv.innerHTML = `
+                            <div class="bg-yellow-900 border border-yellow-700 rounded-lg p-4">
+                                <h3 class="font-bold text-yellow-400 mb-2">No Value Detected</h3>
+                                <p class="text-sm">${result.data.message}</p>
+                            </div>
+                        `;
+                    }
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="bg-red-900 border border-red-700 rounded-lg p-4">
+                            <h3 class="font-bold text-red-400 mb-2">Analysis Error</h3>
+                            <p class="text-sm">${result.error}</p>
+                        </div>
+                    `;
+                }
+                
+                resultDiv.classList.remove('hidden');
+            } catch (error) {
+                console.error('Error analyzing match:', error);
+                showToast('Error analyzing match', 'error');
+            }
+        });
+
+        // Refresh data
+        function refreshData() {
+            loadStatistics();
+            loadValueBets();
+            showToast('Data refreshed successfully');
+        }
+
+        // Train model
+        async function trainModel() {
+            showToast('Training AI model...', 'info');
+            
+            try {
+                const response = await fetch('/api/train-model', {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast(`Model trained with ${result.data.accuracy.toFixed(1)}% accuracy`);
+                } else {
+                    showToast('Model training failed', 'error');
+                }
+            } catch (error) {
+                console.error('Error training model:', error);
+                showToast('Model training failed', 'error');
+            }
+        }
+
+        // Export data
+        function exportData() {
+            const exportData = {
+                statistics: {
+                    total_analyzed: document.getElementById('totalAnalyzed').textContent,
+                    value_bets: document.getElementById('valueBets').textContent,
+                    success_rate: document.getElementById('successRate').textContent,
+                    avg_roi: document.getElementById('avgROI').textContent
+                },
+                timestamp: new Date().toISOString()
+            };
+            
+            const dataStr = JSON.stringify(exportData, null, 2);
+            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+            
+            const exportFileDefaultName = `ai-betting-export-${new Date().toISOString().split('T')[0]}.json`;
+            
+            const linkElement = document.createElement('a');
+            linkElement.setAttribute('href', dataUri);
+            linkElement.setAttribute('download', exportFileDefaultName);
+            linkElement.click();
+            
+            showToast('Data exported successfully!', 'success');
+        }
+
+        // Show settings
+        function showSettings() {
+            const settingsModal = `
+                <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div class="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+                        <h3 class="text-xl font-bold mb-4">Settings</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Default Stake (KES)</label>
+                                <input type="number" id="defaultStake" value="100" min="10" step="10"
+                                    class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Notifications</label>
+                                <div class="space-y-2">
+                                    <label class="flex items-center">
+                                        <input type="checkbox" checked class="mr-2">
+                                        <span>Value bet alerts</span>
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" checked class="mr-2">
+                                        <span>Betting confirmations</span>
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" class="mr-2">
+                                        <span>Marketing updates</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Theme</label>
+                                <select class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2">
+                                    <option>Dark Mode</option>
+                                    <option>Light Mode</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="flex space-x-3 mt-6">
+                            <button onclick="this.closest('.fixed').remove()" 
+                                class="flex-1 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg transition">
+                                Save Settings
+                            </button>
+                            <button onclick="this.closest('.fixed').remove()" 
+                                class="flex-1 bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded-lg transition">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', settingsModal);
+        }
+
+        // Show toast notification
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            
+            toastMessage.textContent = message;
+            
+            // Set background color based on type
+            toast.className = 'fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg';
+            if (type === 'error') {
+                toast.classList.add('bg-red-600', 'text-white');
+            } else if (type === 'info') {
+                toast.classList.add('bg-blue-600', 'text-white');
+            } else {
+                toast.classList.add('bg-green-600', 'text-white');
+            }
+            
+            toast.classList.remove('hidden');
+            
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
