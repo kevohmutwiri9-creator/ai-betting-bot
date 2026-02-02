@@ -1,0 +1,23 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/index.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "api/index.py"
+    }
+  ],
+  "env": {
+    "TELEGRAM_BOT_TOKEN": "@telegram_bot_token",
+    "TELEGRAM_BOT_USERNAME": "@telegram_bot_username",
+    "API_SECRET_KEY": "@api_secret_key",
+    "WEBHOOK_SECRET": "@webhook_secret",
+    "SESSION_SECRET_KEY": "@session_secret_key",
+    "JWT_SECRET_KEY": "@jwt_secret_key"
+  }
+}
