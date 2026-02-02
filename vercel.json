@@ -13,11 +13,11 @@
     }
   ],
   "env": {
-    "TELEGRAM_BOT_TOKEN": "@telegram_bot_token",
-    "TELEGRAM_BOT_USERNAME": "@telegram_bot_username",
-    "API_SECRET_KEY": "@api_secret_key",
-    "WEBHOOK_SECRET": "@webhook_secret",
-    "SESSION_SECRET_KEY": "@session_secret_key",
-    "JWT_SECRET_KEY": "@jwt_secret_key"
+    "TELEGRAM_BOT_TOKEN": "8537708272:AAH-VGrOjlXhNohNwUWyyu3D2tDT8oVPXNg",
+    "TELEGRAM_BOT_USERNAME": "aibettingbotbot",
+    "API_SECRET_KEY": "79HtJpTxvYD-xkT_ls22TNoHxNUBSdUNGbmf7i02zWE",
+    "WEBHOOK_SECRET": "YeAzIh9sERo7d6giCzLQvqyYlDJ3WOA52GRKtmN-a8",
+    "SESSION_SECRET_KEY": "G-fNG4o7ibogN0kgpmXy7pzR1Zt0HtPj5tR02PVcnyM",
+    "JWT_SECRET_KEY": "MJStGhzAzivCbI8H8Vnm1PE_sATbGAFTvar_91Xf1x4"
   }
 }
