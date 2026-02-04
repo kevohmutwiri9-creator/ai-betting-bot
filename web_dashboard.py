@@ -646,11 +646,17 @@ def create_simple_value_bets(matches_data):
     """Create simple value bets without complex AI"""
     value_bets = []
     
-    for _, match in matches_data.iterrows():
+    print(f"🔍 Processing {len(matches_data)} matches for value bets...")
+    
+    for idx, match in matches_data.iterrows():
+        print(f"📊 Processing match {idx+1}: {match['home_team']} vs {match['away_team']}")
+        
         # Simple value calculation - look for odds that seem favorable
         home_value = calculate_simple_value(match['home_odds'], 0.45)  # Assume 45% home win prob
         draw_value = calculate_simple_value(match['draw_odds'], 0.25)   # Assume 25% draw prob  
         away_value = calculate_simple_value(match['away_odds'], 0.30)  # Assume 30% away win prob
+        
+        print(f"   📈 Values - Home: {home_value:.3f}, Draw: {draw_value:.3f}, Away: {away_value:.3f}")
         
         # Find best value
         best_value = max(home_value, draw_value, away_value)
@@ -678,7 +684,11 @@ def create_simple_value_bets(matches_data):
                 'expected_value': round(best_value, 3)
             }
             value_bets.append(value_bet)
+            print(f"   ✅ Value bet found: {bet_type} @ {odds} (+{best_value*100:.1f}%)")
+        else:
+            print(f"   ❌ No value (best: {best_value*100:.1f}%)")
     
+    print(f"🎯 Total value bets created: {len(value_bets)}")
     return value_bets
 
 def calculate_simple_value(odds, estimated_prob):
