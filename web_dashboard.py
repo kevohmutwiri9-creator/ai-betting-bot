@@ -224,6 +224,52 @@ def get_betting_history():
             'error': str(e)
         }), 500
 
+@app.route('/api/value-bets-mock')
+@require_auth
+def get_mock_value_bets():
+    """Mock endpoint for testing frontend"""
+    mock_bets = [
+        {
+            'id': 'mock_001',
+            'home_team': 'Manchester United',
+            'away_team': 'Arsenal',
+            'league': 'Premier League',
+            'match_time': '2024-02-03 20:00',
+            'bet_type': 'Home Win',
+            'odds': 2.10,
+            'value_margin': 8.5,
+            'expected_value': 0.15
+        },
+        {
+            'id': 'mock_002', 
+            'home_team': 'Liverpool',
+            'away_team': 'Chelsea',
+            'league': 'Premier League',
+            'match_time': '2024-02-04 15:00',
+            'bet_type': 'Over 2.5 Goals',
+            'odds': 1.85,
+            'value_margin': 6.2,
+            'expected_value': 0.12
+        },
+        {
+            'id': 'mock_003',
+            'home_team': 'Barcelona',
+            'away_team': 'Real Madrid',
+            'league': 'La Liga',
+            'match_time': '2024-02-05 21:00',
+            'bet_type': 'Both Teams to Score',
+            'odds': 1.65,
+            'value_margin': 7.8,
+            'expected_value': 0.18
+        }
+    ]
+    
+    return jsonify({
+        'success': True,
+        'data': mock_bets,
+        'timestamp': datetime.now().isoformat()
+    })
+
 @app.route('/api/value-bets')
 @require_auth
 @rate_limit('api')
@@ -234,9 +280,11 @@ def get_value_bets():
     try:
         # Get current matches
         matches_data = data_collector.get_sample_data()
+        print(f"📊 Got {len(matches_data)} matches from data collector")
         
         # Find value bets
         value_bets = value_detector.find_value_bets(matches_data)
+        print(f"💎 Found {len(value_bets)} value bets")
         
         return jsonify({
             'success': True,
@@ -244,6 +292,7 @@ def get_value_bets():
             'timestamp': datetime.now().isoformat()
         })
     except Exception as e:
+        print(f"❌ Error in value-bets API: {e}")
         return jsonify({
             'success': False,
             'error': str(e)

@@ -438,7 +438,7 @@
         // Load value bets
         async function loadValueBets() {
             try {
-                const response = await authenticatedFetch('/api/value-bets');
+                const response = await authenticatedFetch('/api/value-bets-mock');
                 const data = await response.json();
                 
                 if (data.success) {
