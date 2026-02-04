@@ -517,45 +517,55 @@ class FootballDataCollector:
         return pd.DataFrame(matches)
     
     def get_sample_data(self):
-        """Generate sample football data for demonstration"""
-        # Try to get real data first
+        """Get real football data from APIs"""
+        print("🔍 Starting data collection from APIs...")
+        
+        # Try API-Football first
         try:
             import requests
             from datetime import datetime
             
-            # Try API-Football for real data
-            url = "https://v3.football.api-sports.io/fixtures"
-            headers = {"x-apisports-key": os.getenv('API_FOOTBALL_KEY', '')}
+            api_football_key = os.getenv('API_FOOTBALL_KEY', '')
+            print(f"🔑 API-Football key found: {len(api_football_key)} characters")
             
-            if headers["x-apisports-key"] and len(headers["x-apisports-key"]) > 10:
-                print("🔑 Using API-Football key for real data")
+            if api_football_key and len(api_football_key) > 10:
+                print("🌐 Trying API-Football...")
+                url = "https://v3.football.api-sports.io/fixtures"
+                headers = {"x-apisports-key": api_football_key}
+                
                 response = requests.get(url, headers=headers, timeout=10)
+                print(f"� API-Football response: {response.status_code}")
+                
                 if response.status_code == 200:
                     data = response.json()
                     real_matches = []
                     
-                    for fixture in data.get('response', [])[:20]:  # Get 20 matches
+                    for fixture in data.get('response', [])[:20]:
                         match = {
                             'match_id': f"real_{fixture.get('fixture', {}).get('id')}",
                             'home_team': fixture.get('teams', {}).get('home', {}).get('name', ''),
                             'away_team': fixture.get('teams', {}).get('away', {}).get('name', ''),
                             'league': fixture.get('league', {}).get('name', ''),
                             'date': fixture.get('fixture', {}).get('date', '').split('T')[0],
-                            'home_odds': 2.10,  # Would get from real odds API
+                            'home_odds': 2.10,
                             'draw_odds': 3.40,
                             'away_odds': 3.20
                         }
-                        if match['home_team'] and match['away_team']:  # Only add valid matches
+                        if match['home_team'] and match['away_team']:
                             real_matches.append(match)
                     
                     if real_matches:
-                        print(f"✅ Got {len(real_matches)} real matches from API-Football")
+                        print(f"✅ SUCCESS: Got {len(real_matches)} real matches from API-Football")
                         return pd.DataFrame(real_matches)
+                    else:
+                        print("⚠️ API-Football returned no valid matches")
+                else:
+                    print(f"❌ API-Football error: {response.status_code} - {response.text}")
             else:
-                print("❌ Invalid API-Football key")
+                print("❌ API-Football key missing or too short")
                 
         except Exception as e:
-            print(f"❌ Real API failed: {e}")
+            print(f"❌ API-Football failed: {e}")
         
         # Try Football-Data API as backup
         try:
@@ -563,12 +573,16 @@ class FootballDataCollector:
             from datetime import datetime
             
             football_data_key = os.getenv('FOOTBALL_DATA_API_KEY', '')
+            print(f"🔑 Football-Data key found: {len(football_data_key)} characters")
+            
             if football_data_key and len(football_data_key) > 10:
-                print("� Trying Football-Data API")
+                print("🌐 Trying Football-Data API...")
                 url = "https://api.football-data.org/v4/matches"
                 headers = {"X-Auth-Token": football_data_key}
                 
                 response = requests.get(url, headers=headers, timeout=10)
+                print(f"📡 Football-Data response: {response.status_code}")
+                
                 if response.status_code == 200:
                     data = response.json()
                     real_matches = []
@@ -588,120 +602,21 @@ class FootballDataCollector:
                             real_matches.append(real_match)
                     
                     if real_matches:
-                        print(f"✅ Got {len(real_matches)} matches from Football-Data API")
+                        print(f"✅ SUCCESS: Got {len(real_matches)} matches from Football-Data API")
                         return pd.DataFrame(real_matches)
+                    else:
+                        print("⚠️ Football-Data API returned no valid matches")
+                else:
+                    print(f"❌ Football-Data error: {response.status_code} - {response.text}")
             else:
-                print("❌ Invalid Football-Data API key")
+                print("❌ Football-Data key missing or too short")
                 
         except Exception as e:
             print(f"❌ Football-Data API failed: {e}")
         
-        # Fallback to sample data
-        print("📊 Using sample data (APIs failed or no valid keys)")
-        sample_matches = [
-            {
-                'match_id': 'man_ars_001',
-                'home_team': 'Manchester United',
-                'away_team': 'Arsenal',
-                'league': 'Premier League',
-                'date': '2024-02-03',
-                'home_odds': 2.10,
-                'draw_odds': 3.40,
-                'away_odds': 3.20
-            },
-            {
-                'match_id': 'liv_che_001',
-                'home_team': 'Liverpool',
-                'away_team': 'Chelsea',
-                'league': 'Premier League',
-                'date': '2024-02-04',
-                'home_odds': 1.85,
-                'draw_odds': 3.60,
-                'away_odds': 4.10
-            },
-            {
-                'match_id': 'bar_mad_001',
-                'home_team': 'Barcelona',
-                'away_team': 'Real Madrid',
-                'league': 'La Liga',
-                'date': '2024-02-05',
-                'home_odds': 2.30,
-                'draw_odds': 3.20,
-                'away_odds': 2.80
-            },
-            {
-                'match_id': 'bay_mun_001',
-                'home_team': 'Bayern Munich',
-                'away_team': 'Borussia Dortmund',
-                'league': 'Bundesliga',
-                'date': '2024-02-03',
-                'home_odds': 1.75,
-                'draw_odds': 3.80,
-                'away_odds': 4.20
-            },
-            {
-                'match_id': 'psg_oly_001',
-                'home_team': 'PSG',
-                'away_team': 'Olympique Lyon',
-                'league': 'Ligue 1',
-                'date': '2024-02-04',
-                'home_odds': 1.65,
-                'draw_odds': 3.90,
-                'away_odds': 4.80
-            },
-            {
-                'match_id': 'man_cit_001',
-                'home_team': 'Manchester City',
-                'away_team': 'Tottenham',
-                'league': 'Premier League',
-                'date': '2024-02-05',
-                'home_odds': 1.45,
-                'draw_odds': 4.50,
-                'away_odds': 6.00
-            },
-            {
-                'match_id': 'real_soc_001',
-                'home_team': 'Real Sociedad',
-                'away_team': 'Atletico Madrid',
-                'league': 'La Liga',
-                'date': '2024-02-03',
-                'home_odds': 2.60,
-                'draw_odds': 3.30,
-                'away_odds': 2.50
-            },
-            {
-                'match_id': 'int_mil_001',
-                'home_team': 'Inter Milan',
-                'away_team': 'AC Milan',
-                'league': 'Serie A',
-                'date': '2024-02-04',
-                'home_odds': 2.05,
-                'draw_odds': 3.25,
-                'away_odds': 3.40
-            },
-            {
-                'match_id': 'nap_juv_001',
-                'home_team': 'Napoli',
-                'away_team': 'Juventus',
-                'league': 'Serie A',
-                'date': '2024-02-05',
-                'home_odds': 2.40,
-                'draw_odds': 3.10,
-                'away_odds': 2.70
-            },
-            {
-                'match_id': 'lei_ave_001',
-                'home_team': 'Leicester City',
-                'away_team': 'Aston Villa',
-                'league': 'Premier League',
-                'date': '2024-02-06',
-                'home_odds': 2.80,
-                'draw_odds': 3.40,
-                'away_odds': 2.20
-            }
-        ]
-        
-        return pd.DataFrame(sample_matches)
+        # If APIs fail, return empty DataFrame
+        print("❌ FAILURE: All APIs failed - no real data available")
+        return pd.DataFrame()
     
     def calculate_team_features(self, match_data):
         """Calculate features for AI model based on team statistics"""
