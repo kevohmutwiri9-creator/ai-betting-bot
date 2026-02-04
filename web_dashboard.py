@@ -28,6 +28,15 @@ def index():
     """Main dashboard page"""
     return render_template('index.html')
 
+@app.route('/health')
+def health():
+    """Health check endpoint"""
+    return jsonify({
+        'status': 'healthy',
+        'timestamp': datetime.now().isoformat(),
+        'environment': os.getenv('ENVIRONMENT', 'unknown')
+    })
+
 @app.route('/api/register', methods=['POST'])
 @auth_rate_limit()
 @log_api_call()
