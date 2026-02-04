@@ -410,6 +410,74 @@ def get_mock_value_bets():
         'timestamp': datetime.now().isoformat()
     })
 
+@app.route('/api/test-apis')
+@require_auth
+def test_apis():
+    """Test API connections and return debug info"""
+    try:
+        import os
+        
+        api_football_key = os.getenv('API_FOOTBALL_KEY', '')
+        football_data_key = os.getenv('FOOTBALL_DATA_API_KEY', '')
+        
+        debug_info = {
+            'api_football_key_length': len(api_football_key),
+            'football_data_key_length': len(football_data_key),
+            'api_football_key_valid': len(api_football_key) > 10,
+            'football_data_key_valid': len(football_data_key) > 10,
+            'environment_vars': {
+                'API_FOOTBALL_KEY': api_football_key[:10] + '...' if len(api_football_key) > 10 else 'INVALID',
+                'FOOTBALL_DATA_API_KEY': football_data_key[:10] + '...' if len(football_data_key) > 10 else 'INVALID'
+            }
+        }
+        
+        # Test API-Football
+        if api_football_key and len(api_football_key) > 10:
+            try:
+                import requests
+                url = "https://v3.football.api-sports.io/fixtures"
+                headers = {"x-apisports-key": api_football_key}
+                response = requests.get(url, headers=headers, timeout=5)
+                debug_info['api_football_test'] = {
+                    'status_code': response.status_code,
+                    'success': response.status_code == 200,
+                    'response_preview': str(response.text)[:200]
+                }
+            except Exception as e:
+                debug_info['api_football_test'] = {
+                    'success': False,
+                    'error': str(e)
+                }
+        
+        # Test Football-Data API
+        if football_data_key and len(football_data_key) > 10:
+            try:
+                import requests
+                url = "https://api.football-data.org/v4/matches"
+                headers = {"X-Auth-Token": football_data_key}
+                response = requests.get(url, headers=headers, timeout=5)
+                debug_info['football_data_test'] = {
+                    'status_code': response.status_code,
+                    'success': response.status_code == 200,
+                    'response_preview': str(response.text)[:200]
+                }
+            except Exception as e:
+                debug_info['football_data_test'] = {
+                    'success': False,
+                    'error': str(e)
+                }
+        
+        return jsonify({
+            'success': True,
+            'debug_info': debug_info
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @app.route('/api/value-bets')
 @require_auth
 @rate_limit('api')
