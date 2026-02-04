@@ -133,25 +133,69 @@
                     <div class="bg-gray-800 rounded-lg p-6 mb-6">
                         <h2 class="text-xl font-bold mb-4 flex items-center">
                             <i class="fas fa-trophy text-yellow-500 mr-2"></i>
-                            Select League
+                            Filter Games
                         </h2>
-                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            <button onclick="loadLeagueMatches('premier_league')" 
-                                class="league-btn bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded text-sm transition">
-                                Premier League
-                            </button>
-                            <button onclick="loadLeagueMatches('la_liga')" 
-                                class="league-btn bg-orange-600 hover:bg-orange-700 px-3 py-2 rounded text-sm transition">
-                                La Liga
-                            </button>
-                            <button onclick="loadLeagueMatches('serie_a')" 
-                                class="league-btn bg-green-600 hover:bg-green-700 px-3 py-2 rounded text-sm transition">
-                                Serie A
-                            </button>
-                            <button onclick="loadLeagueMatches('bundesliga')" 
-                                class="league-btn bg-red-600 hover:bg-red-700 px-3 py-2 rounded text-sm transition">
-                                Bundesliga
-                            </button>
+                        
+                        <!-- Date Filter -->
+                        <div class="mb-4">
+                            <p class="text-sm text-gray-400 mb-2">Date Filter:</p>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                <button onclick="filterByDate('live')" 
+                                    class="date-filter-btn bg-red-600 hover:bg-red-700 px-3 py-2 rounded text-sm transition">
+                                    🔴 Live
+                                </button>
+                                <button onclick="filterByDate('today')" 
+                                    class="date-filter-btn bg-green-600 hover:bg-green-700 px-3 py-2 rounded text-sm transition">
+                                    📅 Today
+                                </button>
+                                <button onclick="filterByDate('tomorrow')" 
+                                    class="date-filter-btn bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded text-sm transition">
+                                    📆 Tomorrow
+                                </button>
+                                <button onclick="filterByDate('yesterday')" 
+                                    class="date-filter-btn bg-gray-600 hover:bg-gray-700 px-3 py-2 rounded text-sm transition">
+                                    ✅ Yesterday
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- League Filter -->
+                        <div>
+                            <p class="text-sm text-gray-400 mb-2">League Filter:</p>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                <button onclick="loadLeagueMatches('premier_league')" 
+                                    class="league-btn bg-purple-600 hover:bg-purple-700 px-3 py-2 rounded text-sm transition">
+                                    Premier League
+                                </button>
+                                <button onclick="loadLeagueMatches('la_liga')" 
+                                    class="league-btn bg-orange-600 hover:bg-orange-700 px-3 py-2 rounded text-sm transition">
+                                    La Liga
+                                </button>
+                                <button onclick="loadLeagueMatches('serie_a')" 
+                                    class="league-btn bg-green-600 hover:bg-green-700 px-3 py-2 rounded text-sm transition">
+                                    Serie A
+                                </button>
+                                <button onclick="loadLeagueMatches('bundesliga')" 
+                                    class="league-btn bg-red-600 hover:bg-red-700 px-3 py-2 rounded text-sm transition">
+                                    Bundesliga
+                                </button>
+                                <button onclick="loadLeagueMatches('casino_games')" 
+                                    class="league-btn bg-pink-600 hover:bg-pink-700 px-3 py-2 rounded text-sm transition">
+                                    🎰 Casino
+                                </button>
+                                <button onclick="loadLeagueMatches('slot_games')" 
+                                    class="league-btn bg-yellow-600 hover:bg-yellow-700 px-3 py-2 rounded text-sm transition">
+                                    🎰 Slots
+                                </button>
+                                <button onclick="loadLeagueMatches('poker_games')" 
+                                    class="league-btn bg-indigo-600 hover:bg-indigo-700 px-3 py-2 rounded text-sm transition">
+                                    🃏 Poker
+                                </button>
+                                <button onclick="loadLeagueMatches('esports')" 
+                                    class="league-btn bg-cyan-600 hover:bg-cyan-700 px-3 py-2 rounded text-sm transition">
+                                    🎮 Esports
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -466,6 +510,30 @@
             return fetch(url, { ...options, headers });
         }
 
+        // Date filtering functions
+        function filterByDate(dateFilter) {
+            console.log(`🔍 Filtering by date: ${dateFilter}`);
+            loadValueBets(dateFilter);
+            
+            // Update button styles
+            document.querySelectorAll('.date-filter-btn').forEach(btn => {
+                btn.classList.remove('ring-2', 'ring-white');
+            });
+            event.target.classList.add('ring-2', 'ring-white');
+        }
+
+        // Load league matches
+        async function loadLeagueMatches(leagueId) {
+            console.log(`🏆 Loading matches for league: ${leagueId}`);
+            loadValueBets('all', leagueId);
+            
+            // Update button styles
+            document.querySelectorAll('.league-btn').forEach(btn => {
+                btn.classList.remove('ring-2', 'ring-white');
+            });
+            event.target.classList.add('ring-2', 'ring-white');
+        }
+
         // Load statistics
         async function loadStatistics() {
             try {
@@ -483,17 +551,43 @@
             }
         }
 
-        // Load value bets
-        async function loadValueBets() {
+        // Load value bets with optional filtering
+        async function loadValueBets(dateFilter = 'all', leagueFilter = 'all') {
             try {
-                const response = await authenticatedFetch('/api/value-bets');
+                let url = '/api/value-bets';
+                const params = new URLSearchParams();
+                
+                if (dateFilter !== 'all') {
+                    params.append('date_filter', dateFilter);
+                }
+                if (leagueFilter !== 'all') {
+                    params.append('league_filter', leagueFilter);
+                }
+                
+                if (params.toString()) {
+                    url += '?' + params.toString();
+                }
+                
+                const response = await authenticatedFetch(url);
                 const data = await response.json();
                 
                 if (data.success) {
                     const valueBetsContainer = document.getElementById('valueBetsList');
                     if (valueBetsContainer) {
-                        valueBetsContainer.innerHTML = formatValueBets(data.data);
+                        if (data.data && data.data.length > 0) {
+                            valueBetsContainer.innerHTML = formatValueBets(data.data);
+                        } else {
+                            valueBetsContainer.innerHTML = `
+                                <div class="text-center text-gray-400 py-8">
+                                    <i class="fas fa-search text-4xl mb-4"></i>
+                                    <p>No value bets found for this filter</p>
+                                    <p class="text-sm mt-2">Try a different date or league filter</p>
+                                </div>
+                            `;
+                        }
                     }
+                } else {
+                    console.error('Failed to load value bets:', data.error);
                 }
             } catch (error) {
                 console.error('Error loading value bets:', error);

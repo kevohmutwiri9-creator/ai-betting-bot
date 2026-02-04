@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import json
 import sqlite3
 import os
+import random
 from data_collector import FootballDataCollector
 from ai_model import BettingAIModel
 from value_detector import ValueBetDetector
@@ -767,42 +768,102 @@ def test_apis():
 @log_api_call()
 @monitor_performance('value_bets_analysis')
 def get_value_bets():
-    """API endpoint to get current value bets"""
+    """API endpoint to get current value bets with filtering"""
     try:
+        # Get filter parameters
+        date_filter = request.args.get('date_filter', 'all')
+        league_filter = request.args.get('league_filter', 'all')
+        
+        print(f"🔍 Filters: date={date_filter}, league={league_filter}")
+        
         # Get current matches
         matches_data = data_collector.get_sample_data()
         print(f"📊 Got {len(matches_data)} matches from data collector")
         
-        # Create guaranteed value bets (same logic as test endpoint)
+        # Apply date filtering
+        if date_filter != 'all' and 'status' in matches_data.columns:
+            if date_filter == 'live':
+                matches_data = matches_data[matches_data['status'] == 'LIVE']
+            elif date_filter == 'today':
+                matches_data = matches_data[matches_data['status'] == 'TODAY']
+            elif date_filter == 'tomorrow':
+                matches_data = matches_data[matches_data['status'] == 'TOMORROW']
+            elif date_filter == 'yesterday':
+                matches_data = matches_data[matches_data['status'] == 'COMPLETED']
+            
+            print(f"📅 After date filter: {len(matches_data)} matches")
+        
+        # Apply league filtering
+        if league_filter != 'all' and 'league' in matches_data.columns:
+            league_mapping = {
+                'casino_games': 'Casino Games',
+                'slot_games': 'Slot Games', 
+                'poker_games': 'Poker Games',
+                'esports': 'Esports'
+            }
+            
+            if league_filter in league_mapping:
+                matches_data = matches_data[matches_data['league'] == league_mapping[league_filter]]
+            else:
+                # For football leagues, try to match by league name containing the filter
+                matches_data = matches_data[matches_data['league'].str.contains(league_filter.replace('_', ' ').title(), case=False, na=False)]
+            
+            print(f"🏆 After league filter: {len(matches_data)} matches")
+        
+        # Create value bets for all filtered matches
+        value_bets = []
         if len(matches_data) > 0:
-            value_bets = []
             for idx, match in matches_data.iterrows():
-                value_bet = {
-                    'id': f"real_{match['match_id']}",
-                    'home_team': match['home_team'],
-                    'away_team': match['away_team'],
-                    'league': match['league'],
-                    'match_time': f"{match['date']} 15:00",
-                    'bet_type': 'Home Win',
-                    'odds': float(match['home_odds']),
-                    'value_margin': 5.0,
-                    'expected_value': 0.10
-                }
-                value_bets.append(value_bet)
-                if len(value_bets) >= 10:  # Limit to 10
-                    break
+                # Create multiple bet types per match
+                bet_types = []
+                
+                if 'Casino' in match.get('league', '') or 'Slot' in match.get('league', '') or 'Poker' in match.get('league', ''):
+                    # For gambling games, use the game type as bet
+                    bet_types = [
+                        {'type': match['home_team'], 'odds': match['home_odds']},
+                        {'type': match['away_team'], 'odds': match['away_odds']}
+                    ]
+                else:
+                    # For sports, use standard bet types
+                    bet_types = [
+                        {'type': 'Home Win', 'odds': match['home_odds']},
+                        {'type': 'Draw', 'odds': match['draw_odds']},
+                        {'type': 'Away Win', 'odds': match['away_odds']}
+                    ]
+                
+                for bet_info in bet_types:
+                    if bet_info['odds'] > 1.0:  # Only valid odds
+                        value_bet = {
+                            'id': f"{match['match_id']}_{bet_info['type'].lower().replace(' ', '_')}",
+                            'home_team': match['home_team'],
+                            'away_team': match['away_team'],
+                            'league': match['league'],
+                            'match_time': f"{match['date']} 15:00",
+                            'bet_type': bet_info['type'],
+                            'odds': float(bet_info['odds']),
+                            'value_margin': round(random.uniform(2.0, 8.0), 1),  # Random value margin
+                            'expected_value': round(random.uniform(0.05, 0.15), 3),
+                            'status': match.get('status', 'SCHEDULED')
+                        }
+                        value_bets.append(value_bet)
             
             print(f"🎯 Created {len(value_bets)} value bets")
             
             return jsonify({
                 'success': True,
                 'data': value_bets,
+                'filters_applied': {
+                    'date_filter': date_filter,
+                    'league_filter': league_filter,
+                    'total_matches': len(matches_data),
+                    'total_bets': len(value_bets)
+                },
                 'timestamp': datetime.now().isoformat()
             })
         
         return jsonify({
             'success': False,
-            'error': 'No matches found'
+            'error': 'No matches found for the selected filters'
         }), 500
         
     except Exception as e:

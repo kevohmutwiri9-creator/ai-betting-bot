@@ -517,32 +517,29 @@ class FootballDataCollector:
         return pd.DataFrame(matches)
     
     def get_sample_data(self):
-        """Get real football data from APIs"""
-        print("🔍 Starting data collection from APIs...")
+        """Get comprehensive football data with date filtering"""
+        print("🔍 Starting comprehensive data collection...")
         
-        # Try API-Football first
+        # Try API-Football first for live and today's games
         try:
             import requests
-            from datetime import datetime
+            from datetime import datetime, timedelta
             
             api_football_key = os.getenv('API_FOOTBALL_KEY', '')
             print(f"🔑 API-Football key found: {len(api_football_key)} characters")
             
             if api_football_key and len(api_football_key) > 10:
-                print("🌐 Trying API-Football for LIVE matches...")
-                # Get current live and upcoming matches
-                url = "https://v3.football.api-sports.io/fixtures?live=all"  # All live matches
+                all_matches = []
+                
+                # 1. Get LIVE matches first
+                print("🌐 Getting LIVE matches...")
+                url_live = "https://v3.football.api-sports.io/fixtures?live=all"
                 headers = {"x-apisports-key": api_football_key}
                 
-                response = requests.get(url, headers=headers, timeout=10)
-                print(f"📡 API-Football LIVE response: {response.status_code}")
-                
+                response = requests.get(url_live, headers=headers, timeout=10)
                 if response.status_code == 200:
                     data = response.json()
-                    real_matches = []
-                    
-                    for fixture in data.get('response', [])[:20]:
-                        # Get actual fixture time
+                    for fixture in data.get('response', []):
                         fixture_time = fixture.get('fixture', {}).get('date', '')
                         match_date = fixture_time.split('T')[0] if 'T' in fixture_time else fixture_time
                         
@@ -555,54 +552,102 @@ class FootballDataCollector:
                             'home_odds': 2.10,
                             'draw_odds': 3.40,
                             'away_odds': 3.20,
-                            'status': fixture.get('fixture', {}).get('status', {}).get('long', 'Unknown'),
+                            'status': 'LIVE',
                             'fixture_time': fixture_time
                         }
                         if match['home_team'] and match['away_team']:
-                            real_matches.append(match)
-                            print(f"⚽ LIVE: {match['home_team']} vs {match['away_team']} ({match['status']})")
-                    
-                    if real_matches:
-                        print(f"✅ SUCCESS: Got {len(real_matches)} LIVE matches from API-Football")
-                        return pd.DataFrame(real_matches)
-                    else:
-                        print("⚠️ No live matches found, trying TODAY's matches...")
-                        
-                        # Try today's matches if no live ones
-                        from datetime import datetime
-                        today = datetime.now().strftime('%Y-%m-%d')
-                        url_today = f"https://v3.football.api-sports.io/fixtures?date={today}"
-                        response_today = requests.get(url_today, headers=headers, timeout=10)
-                        
-                        if response_today.status_code == 200:
-                            data_today = response_today.json()
-                            for fixture in data_today.get('response', [])[:20]:
-                                fixture_time = fixture.get('fixture', {}).get('date', '')
-                                match_date = fixture_time.split('T')[0] if 'T' in fixture_time else fixture_time
-                                
-                                match = {
-                                    'match_id': f"today_{fixture.get('fixture', {}).get('id')}",
-                                    'home_team': fixture.get('teams', {}).get('home', {}).get('name', ''),
-                                    'away_team': fixture.get('teams', {}).get('away', {}).get('name', ''),
-                                    'league': fixture.get('league', {}).get('name', ''),
-                                    'date': match_date,
-                                    'home_odds': 2.10,
-                                    'draw_odds': 3.40,
-                                    'away_odds': 3.20,
-                                    'status': fixture.get('fixture', {}).get('status', {}).get('long', 'Scheduled'),
-                                    'fixture_time': fixture_time
-                                }
-                                if match['home_team'] and match['away_team']:
-                                    real_matches.append(match)
-                                    print(f"📅 TODAY: {match['home_team']} vs {match['away_team']} ({match['status']})")
-                            
-                            if real_matches:
-                                print(f"✅ SUCCESS: Got {len(real_matches)} TODAY matches from API-Football")
-                                return pd.DataFrame(real_matches)
+                            all_matches.append(match)
+                            print(f"⚽ LIVE: {match['home_team']} vs {match['away_team']}")
                 
-                print(f"❌ API-Football error: {response.status_code} - {response.text}")
-            else:
-                print("❌ API-Football key missing or too short")
+                # 2. Get TODAY's matches
+                print("📅 Getting TODAY's matches...")
+                today = datetime.now().strftime('%Y-%m-%d')
+                url_today = f"https://v3.football.api-sports.io/fixtures?date={today}"
+                
+                response = requests.get(url_today, headers=headers, timeout=10)
+                if response.status_code == 200:
+                    data = response.json()
+                    for fixture in data.get('response', []):
+                        fixture_time = fixture.get('fixture', {}).get('date', '')
+                        match_date = fixture_time.split('T')[0] if 'T' in fixture_time else fixture_time
+                        
+                        match = {
+                            'match_id': f"today_{fixture.get('fixture', {}).get('id')}",
+                            'home_team': fixture.get('teams', {}).get('home', {}).get('name', ''),
+                            'away_team': fixture.get('teams', {}).get('away', {}).get('name', ''),
+                            'league': fixture.get('league', {}).get('name', ''),
+                            'date': match_date,
+                            'home_odds': 2.10,
+                            'draw_odds': 3.40,
+                            'away_odds': 3.20,
+                            'status': 'TODAY',
+                            'fixture_time': fixture_time
+                        }
+                        if match['home_team'] and match['away_team']:
+                            all_matches.append(match)
+                            print(f"📅 TODAY: {match['home_team']} vs {match['away_team']}")
+                
+                # 3. Get TOMORROW's matches
+                print("📆 Getting TOMORROW's matches...")
+                tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+                url_tomorrow = f"https://v3.football.api-sports.io/fixtures?date={tomorrow}"
+                
+                response = requests.get(url_tomorrow, headers=headers, timeout=10)
+                if response.status_code == 200:
+                    data = response.json()
+                    for fixture in data.get('response', []):
+                        fixture_time = fixture.get('fixture', {}).get('date', '')
+                        match_date = fixture_time.split('T')[0] if 'T' in fixture_time else fixture_time
+                        
+                        match = {
+                            'match_id': f"tomorrow_{fixture.get('fixture', {}).get('id')}",
+                            'home_team': fixture.get('teams', {}).get('home', {}).get('name', ''),
+                            'away_team': fixture.get('teams', {}).get('away', {}).get('name', ''),
+                            'league': fixture.get('league', {}).get('name', ''),
+                            'date': match_date,
+                            'home_odds': 2.10,
+                            'draw_odds': 3.40,
+                            'away_odds': 3.20,
+                            'status': 'TOMORROW',
+                            'fixture_time': fixture_time
+                        }
+                        if match['home_team'] and match['away_team']:
+                            all_matches.append(match)
+                            print(f"📆 TOMORROW: {match['home_team']} vs {match['away_team']}")
+                
+                # 4. Get YESTERDAY's matches (for completed games)
+                print("📅 Getting YESTERDAY's matches...")
+                yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+                url_yesterday = f"https://v3.football.api-sports.io/fixtures?date={yesterday}"
+                
+                response = requests.get(url_yesterday, headers=headers, timeout=10)
+                if response.status_code == 200:
+                    data = response.json()
+                    for fixture in data.get('response', []):
+                        fixture_time = fixture.get('fixture', {}).get('date', '')
+                        match_date = fixture_time.split('T')[0] if 'T' in fixture_time else fixture_time
+                        
+                        match = {
+                            'match_id': f"yesterday_{fixture.get('fixture', {}).get('id')}",
+                            'home_team': fixture.get('teams', {}).get('home', {}).get('name', ''),
+                            'away_team': fixture.get('teams', {}).get('away', {}).get('name', ''),
+                            'league': fixture.get('league', {}).get('name', ''),
+                            'date': match_date,
+                            'home_odds': 2.10,
+                            'draw_odds': 3.40,
+                            'away_odds': 3.20,
+                            'status': 'COMPLETED',
+                            'fixture_time': fixture_time
+                        }
+                        if match['home_team'] and match['away_team']:
+                            all_matches.append(match)
+                            print(f"✅ YESTERDAY: {match['home_team']} vs {match['away_team']}")
+                
+                if all_matches:
+                    print(f"✅ SUCCESS: Got {len(all_matches)} total matches (LIVE + Today + Tomorrow + Yesterday)")
+                    return pd.DataFrame(all_matches)
+                else:
+                    print("⚠️ No matches from API-Football")
                 
         except Exception as e:
             print(f"❌ API-Football failed: {e}")
@@ -627,7 +672,7 @@ class FootballDataCollector:
                     data = response.json()
                     real_matches = []
                     
-                    for match in data.get('matches', [])[:15]:
+                    for match in data.get('matches', []):
                         real_match = {
                             'match_id': f"fd_{match.get('id')}",
                             'home_team': match.get('homeTeam', {}).get('name', ''),
@@ -636,7 +681,8 @@ class FootballDataCollector:
                             'date': match.get('utcDate', '').split('T')[0],
                             'home_odds': 2.15,
                             'draw_odds': 3.30,
-                            'away_odds': 3.10
+                            'away_odds': 3.10,
+                            'status': 'SCHEDULED'
                         }
                         if real_match['home_team'] and real_match['away_team']:
                             real_matches.append(real_match)
@@ -644,10 +690,6 @@ class FootballDataCollector:
                     if real_matches:
                         print(f"✅ SUCCESS: Got {len(real_matches)} matches from Football-Data API")
                         return pd.DataFrame(real_matches)
-                    else:
-                        print("⚠️ Football-Data API returned no valid matches")
-                else:
-                    print(f"❌ Football-Data error: {response.status_code} - {response.text}")
             else:
                 print("❌ Football-Data key missing or too short")
                 
