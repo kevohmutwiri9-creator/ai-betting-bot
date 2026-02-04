@@ -36,6 +36,60 @@
     </header>
 
     <main class="container mx-auto px-4 py-8">
+        <!-- Auth Modal -->
+        <div id="authModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+                <h3 class="text-xl font-bold mb-4">Login / Register</h3>
+                
+                <!-- Login Form -->
+                <div id="loginForm" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Username</label>
+                        <input type="text" id="loginUsername" required
+                            class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Password</label>
+                        <input type="password" id="loginPassword" required
+                            class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2">
+                    </div>
+                    <button onclick="login()" 
+                        class="w-full bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg transition">
+                        Login
+                    </button>
+                </div>
+                
+                <!-- Register Form -->
+                <div id="registerForm" class="space-y-4 hidden">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Username</label>
+                        <input type="text" id="regUsername" required
+                            class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Email</label>
+                        <input type="email" id="regEmail" required
+                            class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Password</label>
+                        <input type="password" id="regPassword" required
+                            class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2">
+                    </div>
+                    <button onclick="register()" 
+                        class="w-full bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg transition">
+                        Register
+                    </button>
+                </div>
+                
+                <div class="flex space-x-3 mt-4">
+                    <button onclick="toggleAuthForm()" 
+                        class="flex-1 bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded-lg transition text-sm">
+                        Switch to <span id="authToggleText">Register</span>
+                    </button>
+                </div>
+            </div>
+        </div>
         <!-- Stats Cards -->
         <section class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             <div class="bg-gray-800 rounded-lg p-6">
@@ -331,6 +385,104 @@
     <script>
         // Global variables
         let performanceChart = null;
+        let authToken = localStorage.getItem('authToken');
+
+        // Authentication functions
+        function toggleAuthForm() {
+            const loginForm = document.getElementById('loginForm');
+            const registerForm = document.getElementById('registerForm');
+            const toggleText = document.getElementById('authToggleText');
+            
+            if (loginForm.classList.contains('hidden')) {
+                loginForm.classList.remove('hidden');
+                registerForm.classList.add('hidden');
+                toggleText.textContent = 'Register';
+            } else {
+                loginForm.classList.add('hidden');
+                registerForm.classList.remove('hidden');
+                toggleText.textContent = 'Login';
+            }
+        }
+
+        async function login() {
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+            
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    authToken = result.token;
+                    localStorage.setItem('authToken', authToken);
+                    document.getElementById('authModal').classList.add('hidden');
+                    showToast('Login successful!', 'success');
+                    loadDashboard();
+                } else {
+                    showToast(result.error || 'Login failed', 'error');
+                }
+            } catch (error) {
+                showToast('Login error: ' + error.message, 'error');
+            }
+        }
+
+        async function register() {
+            const username = document.getElementById('regUsername').value;
+            const email = document.getElementById('regEmail').value;
+            const password = document.getElementById('regPassword').value;
+            
+            try {
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, email, password })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast('Registration successful! Please login.', 'success');
+                    toggleAuthForm();
+                } else {
+                    showToast(result.error || 'Registration failed', 'error');
+                }
+            } catch (error) {
+                showToast('Registration error: ' + error.message, 'error');
+            }
+        }
+
+        function loadDashboard() {
+            if (!authToken) {
+                document.getElementById('authModal').classList.remove('hidden');
+                return;
+            }
+            
+            // Load dashboard data
+            loadStatistics();
+            loadValueBets();
+            initPerformanceChart();
+            loadBettingHistory();
+        }
+
+        // API helper function
+        async function authenticatedFetch(url, options = {}) {
+            const headers = {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`,
+                ...options.headers
+            };
+            
+            return fetch(url, { ...options, headers });
+        }
 
         // Load league matches
         async function loadLeagueMatches(leagueId) {
@@ -650,25 +802,20 @@
 
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', function() {
-            loadStatistics();
-            loadValueBets();
-            initPerformanceChart();
-            loadBettingHistory();
+            loadDashboard();
         });
 
         // Load statistics
         async function loadStatistics() {
             try {
-                const response = await fetch('/api/statistics');
-                const result = await response.json();
+                const response = await authenticatedFetch('/api/statistics');
+                const data = await response.json();
                 
-                if (result.success) {
-                    const stats = result.data;
-                    document.getElementById('totalAnalyzed').textContent = stats.total_bets_analyzed.toLocaleString();
-                    document.getElementById('valueBets').textContent = stats.value_bets_found;
-                    document.getElementById('successRate').textContent = (stats.success_rate * 100).toFixed(1) + '%';
-                    document.getElementById('avgROI').textContent = (stats.average_roi * 100).toFixed(1) + '%';
-                    document.getElementById('lastUpdated').textContent = new Date().toLocaleTimeString();
+                if (data.success) {
+                    document.getElementById('totalAnalyzed').textContent = data.data.total_analyzed || '--';
+                    document.getElementById('valueBets').textContent = data.data.value_bets || '--';
+                    document.getElementById('successRate').textContent = data.data.success_rate ? data.data.success_rate + '%' : '--';
+                    document.getElementById('avgROI').textContent = data.data.avg_roi ? data.data.avg_roi + '%' : '--';
                 }
             } catch (error) {
                 console.error('Error loading statistics:', error);
@@ -678,25 +825,14 @@
         // Load value bets
         async function loadValueBets() {
             try {
-                const response = await fetch('/api/value-bets');
-                const result = await response.json();
+                const response = await authenticatedFetch('/api/value-bets');
+                const data = await response.json();
                 
-                const container = document.getElementById('valueBetsContainer');
-                
-                if (result.success && result.data.length > 0) {
-                    container.innerHTML = result.data.map(bet => `
-                        <div class="bg-gray-700 rounded-lg p-4 border-l-4 border-green-500">
-                            <div class="flex justify-between items-start mb-2">
-                                <div>
-                                    <h3 class="font-bold text-lg">${bet.home_team} vs ${bet.away_team}</h3>
-                                    <p class="text-gray-400 text-sm">${bet.league} • ${bet.date}</p>
-                                </div>
-                                <span class="bg-green-600 px-2 py-1 rounded text-sm">${bet.confidence}</span>
-                            </div>
-                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                                <div>
-                                    <p class="text-gray-400">Pick</p>
-                                    <p class="font-bold">${bet.recommended_outcome}</p>
+                if (data.success) {
+                    const valueBetsContainer = document.getElementById('valueBetsList');
+                    if (valueBetsContainer) {
+                        valueBetsContainer.innerHTML = formatValueBets(data.data);
+                    }
                                 </div>
                                 <div>
                                     <p class="text-gray-400">Odds</p>
