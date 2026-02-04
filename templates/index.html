@@ -140,19 +140,19 @@
                         <div class="mb-4">
                             <p class="text-sm text-gray-400 mb-2">Date Filter:</p>
                             <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                <button onclick="filterByDate('live')" 
+                                <button onclick="filterByDate('live', this)" 
                                     class="date-filter-btn bg-red-600 hover:bg-red-700 px-3 py-2 rounded text-sm transition">
                                     🔴 Live
                                 </button>
-                                <button onclick="filterByDate('today')" 
+                                <button onclick="filterByDate('today', this)" 
                                     class="date-filter-btn bg-green-600 hover:bg-green-700 px-3 py-2 rounded text-sm transition">
                                     📅 Today
                                 </button>
-                                <button onclick="filterByDate('tomorrow')" 
+                                <button onclick="filterByDate('tomorrow', this)" 
                                     class="date-filter-btn bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded text-sm transition">
                                     📆 Tomorrow
                                 </button>
-                                <button onclick="filterByDate('yesterday')" 
+                                <button onclick="filterByDate('yesterday', this)" 
                                     class="date-filter-btn bg-gray-600 hover:bg-gray-700 px-3 py-2 rounded text-sm transition">
                                     ✅ Yesterday
                                 </button>
@@ -163,35 +163,35 @@
                         <div>
                             <p class="text-sm text-gray-400 mb-2">League Filter:</p>
                             <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                <button onclick="loadLeagueMatches('premier_league')" 
+                                <button onclick="loadLeagueMatches('premier_league', this)" 
                                     class="league-btn bg-purple-600 hover:bg-purple-700 px-3 py-2 rounded text-sm transition">
                                     Premier League
                                 </button>
-                                <button onclick="loadLeagueMatches('la_liga')" 
+                                <button onclick="loadLeagueMatches('la_liga', this)" 
                                     class="league-btn bg-orange-600 hover:bg-orange-700 px-3 py-2 rounded text-sm transition">
                                     La Liga
                                 </button>
-                                <button onclick="loadLeagueMatches('serie_a')" 
+                                <button onclick="loadLeagueMatches('serie_a', this)" 
                                     class="league-btn bg-green-600 hover:bg-green-700 px-3 py-2 rounded text-sm transition">
                                     Serie A
                                 </button>
-                                <button onclick="loadLeagueMatches('bundesliga')" 
+                                <button onclick="loadLeagueMatches('bundesliga', this)" 
                                     class="league-btn bg-red-600 hover:bg-red-700 px-3 py-2 rounded text-sm transition">
                                     Bundesliga
                                 </button>
-                                <button onclick="loadLeagueMatches('casino_games')" 
+                                <button onclick="loadLeagueMatches('casino_games', this)" 
                                     class="league-btn bg-pink-600 hover:bg-pink-700 px-3 py-2 rounded text-sm transition">
                                     🎰 Casino
                                 </button>
-                                <button onclick="loadLeagueMatches('slot_games')" 
+                                <button onclick="loadLeagueMatches('slot_games', this)" 
                                     class="league-btn bg-yellow-600 hover:bg-yellow-700 px-3 py-2 rounded text-sm transition">
                                     🎰 Slots
                                 </button>
-                                <button onclick="loadLeagueMatches('poker_games')" 
+                                <button onclick="loadLeagueMatches('poker_games', this)" 
                                     class="league-btn bg-indigo-600 hover:bg-indigo-700 px-3 py-2 rounded text-sm transition">
                                     🃏 Poker
                                 </button>
-                                <button onclick="loadLeagueMatches('esports')" 
+                                <button onclick="loadLeagueMatches('esports', this)" 
                                     class="league-btn bg-cyan-600 hover:bg-cyan-700 px-3 py-2 rounded text-sm transition">
                                     🎮 Esports
                                 </button>
@@ -511,7 +511,7 @@
         }
 
         // Date filtering functions
-        function filterByDate(dateFilter) {
+        function filterByDate(dateFilter, buttonElement) {
             console.log(`🔍 Filtering by date: ${dateFilter}`);
             loadValueBets(dateFilter);
             
@@ -519,11 +519,13 @@
             document.querySelectorAll('.date-filter-btn').forEach(btn => {
                 btn.classList.remove('ring-2', 'ring-white');
             });
-            event.target.classList.add('ring-2', 'ring-white');
+            if (buttonElement) {
+                buttonElement.classList.add('ring-2', 'ring-white');
+            }
         }
 
         // Load league matches
-        async function loadLeagueMatches(leagueId) {
+        async function loadLeagueMatches(leagueId, buttonElement) {
             console.log(`🏆 Loading matches for league: ${leagueId}`);
             loadValueBets('all', leagueId);
             
@@ -531,7 +533,9 @@
             document.querySelectorAll('.league-btn').forEach(btn => {
                 btn.classList.remove('ring-2', 'ring-white');
             });
-            event.target.classList.add('ring-2', 'ring-white');
+            if (buttonElement) {
+                buttonElement.classList.add('ring-2', 'ring-white');
+            }
         }
 
         // Load statistics
