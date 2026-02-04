@@ -661,7 +661,7 @@ def create_simple_value_bets(matches_data):
         # Find best value
         best_value = max(home_value, draw_value, away_value)
         
-        if best_value > 0.05:  # 5% minimum value threshold
+        if best_value > 0.01:  # 1% minimum value threshold (lowered for testing)
             if best_value == home_value:
                 bet_type = "Home Win"
                 odds = match['home_odds']
