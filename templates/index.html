@@ -394,10 +394,12 @@
             const toggleText = document.getElementById('authToggleText');
             
             if (loginForm.classList.contains('hidden')) {
+                // Show login, hide register
                 loginForm.classList.remove('hidden');
                 registerForm.classList.add('hidden');
                 toggleText.textContent = 'Register';
             } else {
+                // Show register, hide login
                 loginForm.classList.add('hidden');
                 registerForm.classList.remove('hidden');
                 toggleText.textContent = 'Login';
