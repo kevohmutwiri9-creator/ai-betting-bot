@@ -530,11 +530,12 @@ class FootballDataCollector:
             
             if api_football_key and len(api_football_key) > 10:
                 print("🌐 Trying API-Football...")
-                url = "https://v3.football.api-sports.io/fixtures"
+                # Add required parameters
+                url = "https://v3.football.api-sports.io/fixtures?league=39&season=2023"  # Premier League 2023
                 headers = {"x-apisports-key": api_football_key}
                 
                 response = requests.get(url, headers=headers, timeout=10)
-                print(f"� API-Football response: {response.status_code}")
+                print(f"📡 API-Football response: {response.status_code}")
                 
                 if response.status_code == 200:
                     data = response.json()
