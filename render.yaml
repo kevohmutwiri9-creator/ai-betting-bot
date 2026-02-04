@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: ai-betting-bot
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn web_dashboard:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.0
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_BOT_USERNAME
+        sync: false
+      - key: API_SECRET_KEY
+        sync: false
+      - key: SESSION_SECRET_KEY
+        sync: false
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: FOOTBALL_DATA_API_KEY
+        sync: false
+      - key: API_FOOTBALL_KEY
+        sync: false
+      - key: DEBUG_MODE
+        value: false
+      - key: ENVIRONMENT
+        value: production
