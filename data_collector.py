@@ -584,6 +584,76 @@ class FootballDataCollector:
                 'home_odds': 2.30,
                 'draw_odds': 3.20,
                 'away_odds': 2.80
+            },
+            {
+                'match_id': 'bay_mun_001',
+                'home_team': 'Bayern Munich',
+                'away_team': 'Borussia Dortmund',
+                'league': 'Bundesliga',
+                'date': '2024-02-03',
+                'home_odds': 1.75,
+                'draw_odds': 3.80,
+                'away_odds': 4.20
+            },
+            {
+                'match_id': 'psg_oly_001',
+                'home_team': 'PSG',
+                'away_team': 'Olympique Lyon',
+                'league': 'Ligue 1',
+                'date': '2024-02-04',
+                'home_odds': 1.65,
+                'draw_odds': 3.90,
+                'away_odds': 4.80
+            },
+            {
+                'match_id': 'man_cit_001',
+                'home_team': 'Manchester City',
+                'away_team': 'Tottenham',
+                'league': 'Premier League',
+                'date': '2024-02-05',
+                'home_odds': 1.45,
+                'draw_odds': 4.50,
+                'away_odds': 6.00
+            },
+            {
+                'match_id': 'real_soc_001',
+                'home_team': 'Real Sociedad',
+                'away_team': 'Atletico Madrid',
+                'league': 'La Liga',
+                'date': '2024-02-03',
+                'home_odds': 2.60,
+                'draw_odds': 3.30,
+                'away_odds': 2.50
+            },
+            {
+                'match_id': 'int_mil_001',
+                'home_team': 'Inter Milan',
+                'away_team': 'AC Milan',
+                'league': 'Serie A',
+                'date': '2024-02-04',
+                'home_odds': 2.05,
+                'draw_odds': 3.25,
+                'away_odds': 3.40
+            },
+            {
+                'match_id': 'nap_juv_001',
+                'home_team': 'Napoli',
+                'away_team': 'Juventus',
+                'league': 'Serie A',
+                'date': '2024-02-05',
+                'home_odds': 2.40,
+                'draw_odds': 3.10,
+                'away_odds': 2.70
+            },
+            {
+                'match_id': 'lei_ave_001',
+                'home_team': 'Leicester City',
+                'away_team': 'Aston Villa',
+                'league': 'Premier League',
+                'date': '2024-02-06',
+                'home_odds': 2.80,
+                'draw_odds': 3.40,
+                'away_odds': 2.20
             }
         ]
         
