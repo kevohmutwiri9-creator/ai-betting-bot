@@ -475,6 +475,27 @@ def feature_test():
             import sqlite3
             conn = sqlite3.connect('betting_data.db')
             cursor = conn.cursor()
+            
+            # Create bets table if not exists
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS bets (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT,
+                    bet_id TEXT,
+                    home_team TEXT,
+                    away_team TEXT,
+                    league TEXT,
+                    bet_type TEXT,
+                    odds REAL,
+                    stake REAL,
+                    status TEXT DEFAULT 'pending',
+                    created_at TEXT,
+                    settled_at TEXT,
+                    result TEXT,
+                    profit_loss REAL
+                )
+            ''')
+            
             cursor.execute('SELECT COUNT(*) FROM bets')
             bet_count = cursor.fetchone()[0]
             conn.close()
