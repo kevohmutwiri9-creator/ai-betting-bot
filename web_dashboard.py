@@ -29,7 +29,7 @@ def index():
     return render_template('index.html')
 
 @app.route('/api/register', methods=['POST'])
-@auth_rate_limit
+@auth_rate_limit()
 @log_api_call()
 @log_security_event('user_registration')
 def register():
@@ -60,7 +60,7 @@ def register():
         }), 500
 
 @app.route('/api/login', methods=['POST'])
-@auth_rate_limit
+@auth_rate_limit()
 @log_api_call()
 @log_security_event('user_login')
 def login():
@@ -135,7 +135,7 @@ def get_league_matches(league_id):
 @app.route('/api/auto-bet', methods=['POST'])
 @require_auth
 @require_premium
-@premium_rate_limit
+@premium_rate_limit()
 def auto_bet():
     """API endpoint for auto-betting functionality"""
     try:
