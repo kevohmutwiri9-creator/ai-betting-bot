@@ -41,4 +41,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:10000/ || exit 1
 
 # Default command
-CMD gunicorn --bind 0.0.0.0:10000 web_dashboard:app
+CMD gunicorn --chdir /app --bind 0.0.0.0:10000 web_dashboard:app
