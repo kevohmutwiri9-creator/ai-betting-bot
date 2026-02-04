@@ -343,7 +343,7 @@ def get_statistics():
 @app.route('/api/train-model', methods=['POST'])
 @require_auth
 @require_premium
-@premium_rate_limit
+@premium_rate_limit()
 def train_model():
     """API endpoint to train the AI model"""
     try:
