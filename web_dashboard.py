@@ -30,7 +30,7 @@ def index():
 
 @app.route('/api/register', methods=['POST'])
 @auth_rate_limit
-@log_api_call
+@log_api_call()
 @log_security_event('user_registration')
 def register():
     """Register new user"""
@@ -61,7 +61,7 @@ def register():
 
 @app.route('/api/login', methods=['POST'])
 @auth_rate_limit
-@log_api_call
+@log_api_call()
 @log_security_event('user_login')
 def login():
     """Authenticate user"""
@@ -88,7 +88,7 @@ def login():
 @app.route('/api/leagues')
 @require_auth
 @rate_limit('api')
-@log_api_call
+@log_api_call()
 def get_leagues():
     """API endpoint to get available leagues"""
     leagues = [
@@ -218,7 +218,7 @@ def get_betting_history():
 @app.route('/api/value-bets')
 @require_auth
 @rate_limit('api')
-@log_api_call
+@log_api_call()
 @monitor_performance('value_bets_analysis')
 def get_value_bets():
     """API endpoint to get current value bets"""
@@ -243,7 +243,7 @@ def get_value_bets():
 @app.route('/api/analyze-match', methods=['POST'])
 @require_auth
 @rate_limit('api')
-@log_api_call
+@log_api_call()
 @monitor_performance('match_analysis')
 def analyze_match():
     """API endpoint to analyze a specific match"""
