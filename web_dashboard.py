@@ -2,17 +2,26 @@ from flask import Flask, render_template, jsonify, request
 import pandas as pd
 from datetime import datetime, timedelta
 import json
-from value_detector import ValueBetDetector
 from data_collector import FootballDataCollector
 from ai_model import BettingAIModel
+from value_detector import ValueBetDetector
 from auth import auth_manager, require_auth, require_premium
+from validators import (
+    validate_match_analysis, 
+    validate_auto_bet_request, 
+    validate_user_registration, 
+    validate_user_login,
+    ValidationError
+)
+from rate_limiter import rate_limit, auth_rate_limit, premium_rate_limit
+from logger import logger, log_api_call, monitor_performance, log_security_event
 
 app = Flask(__name__)
 
 # Initialize components
-value_detector = ValueBetDetector()
 data_collector = FootballDataCollector()
 ai_model = BettingAIModel()
+value_detector = ValueBetDetector()
 
 @app.route('/')
 def index():
@@ -20,21 +29,20 @@ def index():
     return render_template('index.html')
 
 @app.route('/api/register', methods=['POST'])
+@auth_rate_limit
+@log_api_call
+@log_security_event('user_registration')
 def register():
     """Register new user"""
     try:
         data = request.get_json()
-        username = data.get('username')
-        email = data.get('email')
-        password = data.get('password')
+        validated_data = validate_user_registration(data)
         
-        if not all([username, email, password]):
-            return jsonify({
-                'success': False,
-                'error': 'Missing required fields'
-            }), 400
-        
-        result = auth_manager.register_user(username, email, password)
+        result = auth_manager.register_user(
+            validated_data['username'], 
+            validated_data['email'], 
+            validated_data['password']
+        )
         
         if result['success']:
             return jsonify({
@@ -52,20 +60,19 @@ def register():
         }), 500
 
 @app.route('/api/login', methods=['POST'])
+@auth_rate_limit
+@log_api_call
+@log_security_event('user_login')
 def login():
     """Authenticate user"""
     try:
         data = request.get_json()
-        username = data.get('username')
-        password = data.get('password')
+        validated_data = validate_user_login(data)
         
-        if not all([username, password]):
-            return jsonify({
-                'success': False,
-                'error': 'Missing username or password'
-            }), 400
-        
-        result = auth_manager.authenticate_user(username, password)
+        result = auth_manager.authenticate_user(
+            validated_data['username'], 
+            validated_data['password']
+        )
         
         if result['success']:
             return jsonify(result)
@@ -79,6 +86,9 @@ def login():
         }), 500
 
 @app.route('/api/leagues')
+@require_auth
+@rate_limit('api')
+@log_api_call
 def get_leagues():
     """API endpoint to get available leagues"""
     leagues = [
@@ -103,6 +113,8 @@ def get_leagues():
     })
 
 @app.route('/api/league-matches/<league_id>')
+@require_auth
+@rate_limit('api')
 def get_league_matches(league_id):
     """API endpoint to get matches for a specific league"""
     try:
@@ -121,26 +133,24 @@ def get_league_matches(league_id):
         }), 500
 
 @app.route('/api/auto-bet', methods=['POST'])
+@require_auth
+@require_premium
+@premium_rate_limit
 def auto_bet():
     """API endpoint for auto-betting functionality"""
     try:
         data = request.get_json()
-        
-        # Get betting parameters
-        stake = float(data.get('stake', 100))
-        max_odds = float(data.get('max_odds', 10.0))
-        min_value = float(data.get('min_value', 5.0))
-        auto_confirm = data.get('auto_confirm', False)
+        validated_data = validate_auto_bet_request(data)
         
         # Get current value bets
         matches_data = data_collector.get_sample_data()
         value_bets = value_detector.find_value_bets(matches_data)
         
-        # Filter bets based on criteria
+        # Filter bets based on validated criteria
         filtered_bets = []
         for bet in value_bets:
-            if (float(bet['odds']) <= max_odds and 
-                float(bet['value_margin']) >= min_value):
+            if (float(bet['odds']) <= validated_data['max_odds'] and 
+                float(bet['value_margin']) >= validated_data['min_value']):
                 filtered_bets.append(bet)
         
         if not filtered_bets:
@@ -150,8 +160,8 @@ def auto_bet():
             })
         
         # Calculate total stake and potential returns
-        total_stake = len(filtered_bets) * stake
-        total_potential = sum([float(bet['odds']) * stake for bet in filtered_bets])
+        total_stake = len(filtered_bets) * validated_data['stake']
+        total_potential = sum([float(bet['odds']) * validated_data['stake'] for bet in filtered_bets])
         
         # Place bets (simulation)
         placed_bets = []
@@ -162,9 +172,9 @@ def auto_bet():
                 'pick': bet['recommended_outcome'],
                 'odds': bet['odds'],
                 'value': bet['value_margin'],
-                'stake': stake,
-                'potential_return': float(bet['odds']) * stake,
-                'status': 'placed' if auto_confirm else 'pending'
+                'stake': validated_data['stake'],
+                'potential_return': float(bet['odds']) * validated_data['stake'],
+                'status': 'placed' if validated_data['auto_confirm'] else 'pending'
             }
             placed_bets.append(bet_result)
         
@@ -175,7 +185,7 @@ def auto_bet():
                 'total_stake': total_stake,
                 'total_potential_return': total_potential,
                 'bet_count': len(placed_bets),
-                'auto_confirm': auto_confirm
+                'auto_confirm': validated_data['auto_confirm']
             }
         })
         
@@ -186,6 +196,7 @@ def auto_bet():
         }), 500
 
 @app.route('/api/betting-history')
+@require_auth
 def get_betting_history():
     """API endpoint to get betting history"""
     try:
@@ -205,6 +216,10 @@ def get_betting_history():
         }), 500
 
 @app.route('/api/value-bets')
+@require_auth
+@rate_limit('api')
+@log_api_call
+@monitor_performance('value_bets_analysis')
 def get_value_bets():
     """API endpoint to get current value bets"""
     try:
@@ -226,30 +241,26 @@ def get_value_bets():
         }), 500
 
 @app.route('/api/analyze-match', methods=['POST'])
+@require_auth
+@rate_limit('api')
+@log_api_call
+@monitor_performance('match_analysis')
 def analyze_match():
     """API endpoint to analyze a specific match"""
     try:
         data = request.get_json()
+        validated_data = validate_match_analysis(data)
         
-        # Validate required fields
-        required_fields = ['home_team', 'away_team', 'home_odds', 'draw_odds', 'away_odds']
-        for field in required_fields:
-            if field not in data:
-                return jsonify({
-                    'success': False,
-                    'error': f'Missing required field: {field}'
-                }), 400
-        
-        # Create match dataframe
+        # Create match dataframe with validated data
         match_data = pd.DataFrame([{
             'match_id': f"manual_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-            'home_team': data['home_team'],
-            'away_team': data['away_team'],
-            'league': data.get('league', 'Custom'),
-            'date': data.get('date', datetime.now().strftime('%Y-%m-%d')),
-            'home_odds': float(data['home_odds']),
-            'draw_odds': float(data['draw_odds']),
-            'away_odds': float(data['away_odds'])
+            'home_team': validated_data['home_team'],
+            'away_team': validated_data['away_team'],
+            'league': validated_data['league'],
+            'date': validated_data['date'],
+            'home_odds': validated_data['home_odds'],
+            'draw_odds': validated_data['draw_odds'],
+            'away_odds': validated_data['away_odds']
         }])
         
         # Analyze match
@@ -291,6 +302,8 @@ def analyze_match():
         }), 500
 
 @app.route('/api/statistics')
+@require_auth
+@rate_limit('api')
 def get_statistics():
     """API endpoint to get betting statistics"""
     try:
@@ -328,6 +341,9 @@ def get_statistics():
         }), 500
 
 @app.route('/api/train-model', methods=['POST'])
+@require_auth
+@require_premium
+@premium_rate_limit
 def train_model():
     """API endpoint to train the AI model"""
     try:

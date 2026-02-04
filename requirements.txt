@@ -14,3 +14,6 @@ stripe==7.5.0
 paypalrestsdk==1.13.3
 bcrypt==4.0.1
 cryptography==41.0.4
+gunicorn==21.2.0
+psycopg2-binary==2.9.7
+psutil==5.9.6

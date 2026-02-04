@@ -1,8 +1,18 @@
+"""
+Football Data Collector Module
+Handles fetching and processing football match data from various sources
+"""
+
 import requests
 import pandas as pd
-import sqlite3
 from datetime import datetime, timedelta
+import sqlite3
 import time
+import json
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class FootballDataCollector:
     def __init__(self, db_path="betting_data.db"):
@@ -31,6 +41,11 @@ class FootballDataCollector:
             )
         ''')
         
+        # Add indexes for better performance
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_match_id ON matches(match_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_league ON matches(league)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_date ON matches(date)')
+        
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS team_stats (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,6 +61,10 @@ class FootballDataCollector:
                 updated_at TEXT
             )
         ''')
+        
+        # Add indexes for team stats
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_team ON team_stats(team)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_team_league ON team_stats(team, league)')
         
         conn.commit()
         conn.close()
@@ -499,6 +518,42 @@ class FootballDataCollector:
     
     def get_sample_data(self):
         """Generate sample football data for demonstration"""
+        # Try to get real data first
+        try:
+            import requests
+            from datetime import datetime
+            
+            # Try API-Football for real data
+            url = "https://v3.football.api-sports.io/fixtures"
+            headers = {"x-apisports-key": os.getenv('API_FOOTBALL_KEY', '')}
+            
+            if headers["x-apisports-key"]:
+                response = requests.get(url, headers=headers, timeout=10)
+                if response.status_code == 200:
+                    data = response.json()
+                    real_matches = []
+                    
+                    for fixture in data.get('response', [])[:10]:  # Limit to 10 matches
+                        match = {
+                            'match_id': f"real_{fixture.get('fixture', {}).get('id')}",
+                            'home_team': fixture.get('teams', {}).get('home', {}).get('name', ''),
+                            'away_team': fixture.get('teams', {}).get('away', {}).get('name', ''),
+                            'league': fixture.get('league', {}).get('name', ''),
+                            'date': fixture.get('fixture', {}).get('date', '').split('T')[0],
+                            'home_odds': 2.10,  # Would get from real odds API
+                            'draw_odds': 3.40,
+                            'away_odds': 3.20
+                        }
+                        real_matches.append(match)
+                    
+                    if real_matches:
+                        print(f"✅ Got {len(real_matches)} real matches from API")
+                        return real_matches
+        except Exception as e:
+            print(f"❌ Real API failed: {e}")
+        
+        # Fallback to sample data
+        print("📊 Using sample data (no API key or API failed)")
         sample_matches = [
             {
                 'match_id': 'man_ars_001',
