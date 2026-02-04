@@ -1,10 +1,9 @@
 services:
   - type: web
     name: ai-betting-bot
-    env: python
+    env: docker
     plan: free
-    buildCommand: pip install --upgrade pip setuptools wheel && pip install -r requirements.txt --no-build-isolation
-    startCommand: gunicorn web_dashboard:app
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: TELEGRAM_BOT_TOKEN
         sync: false
