@@ -410,6 +410,22 @@ def get_mock_value_bets():
         'timestamp': datetime.now().isoformat()
     })
 
+@app.route('/api/test-data')
+def test_data():
+    """Test data collector without authentication"""
+    try:
+        matches_data = data_collector.get_sample_data()
+        return jsonify({
+            'success': True,
+            'matches_count': len(matches_data),
+            'matches': matches_data.head(3).to_dict('records') if len(matches_data) > 0 else []
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @app.route('/api/debug-apis')
 def debug_apis():
     """Public API debug endpoint without authentication"""
