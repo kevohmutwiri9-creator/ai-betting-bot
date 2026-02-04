@@ -245,11 +245,20 @@
                             </div>
                         </form>
                         <div id="autoBetResult" class="mt-4 hidden"></div>
-                    </div>
-                </aside>
-            </div>
 
             <!-- Performance Chart -->
+            <div class="flex justify-between items-center">
+                <h1 class="text-2xl font-bold text-gray-800">AI Betting Assistant</h1>
+                <div class="flex items-center space-x-4">
+                    <span class="text-sm text-gray-500">Last Update: <span id="lastUpdate">--</span></span>
+                    <button onclick="refreshDashboard()" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">
+                        🔄 Refresh
+                    </button>
+                    <button onclick="logout()" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded">
+                        Logout
+                    </button>
+                </div>
+            </div>
             <div class="bg-gray-800 rounded-lg p-6 mt-8">
                 <h2 class="text-xl font-bold mb-4 flex items-center">
                     <i class="fas fa-chart-bar text-blue-500 mr-2"></i>
@@ -389,22 +398,61 @@
             }, 3000);
         }
 
+        // Auto-refresh dashboard data every 30 seconds
+        let autoRefreshInterval;
+        
+        function startAutoRefresh() {
+            if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+            
+            autoRefreshInterval = setInterval(() => {
+                console.log('🔄 Auto-refreshing dashboard data...');
+                loadStatistics();
+                loadValueBets();
+                updateLastRefreshTime();
+            }, 30000); // 30 seconds
+        }
+        
+        function stopAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
+        }
+        
+        function updateLastRefreshTime() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            const lastUpdateElement = document.getElementById('lastUpdate');
+            if (lastUpdateElement) {
+                lastUpdateElement.textContent = timeString;
+            }
+        }
+        
+        // Manual refresh button
+        function refreshDashboard() {
+            console.log('🔄 Manual refresh triggered...');
+            loadStatistics();
+            loadValueBets();
+            updateLastRefreshTime();
+        }
+
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', function() {
             if (authToken) {
                 document.getElementById('authModal').classList.add('hidden');
                 document.getElementById('dashboardContent').classList.remove('hidden');
-                // Load dashboard data
+                
+                // Load initial data
                 loadStatistics();
                 loadValueBets();
                 initPerformanceChart();
+                updateLastRefreshTime();
+                
+                // Start auto-refresh
+                startAutoRefresh();
+                
+                console.log('🚀 Dashboard initialized with auto-refresh');
             }
-        });
-
-        // Add form event listeners
-        document.addEventListener('DOMContentLoaded', function() {
-            document.getElementById('analyzeForm').addEventListener('submit', analyzeMatch);
-            document.getElementById('autoBetForm').addEventListener('submit', toggleAutoBetting);
         });
 
         // API helper function

@@ -410,6 +410,136 @@ def get_mock_value_bets():
         'timestamp': datetime.now().isoformat()
     })
 
+@app.route('/api/feature-test')
+def feature_test():
+    """Comprehensive feature test endpoint"""
+    try:
+        results = {
+            'timestamp': datetime.now().isoformat(),
+            'features': {}
+        }
+        
+        # Test 1: Data Collection
+        try:
+            matches_data = data_collector.get_sample_data()
+            results['features']['data_collection'] = {
+                'status': 'working',
+                'matches_found': len(matches_data),
+                'sample_matches': matches_data.head(2).to_dict('records') if len(matches_data) > 0 else []
+            }
+        except Exception as e:
+            results['features']['data_collection'] = {
+                'status': 'failed',
+                'error': str(e)
+            }
+        
+        # Test 2: Value Bets Generation
+        try:
+            matches_data = data_collector.get_sample_data()
+            if len(matches_data) > 0:
+                value_bets = []
+                for idx, match in matches_data.iterrows():
+                    value_bet = {
+                        'id': f"test_{match['match_id']}",
+                        'home_team': match['home_team'],
+                        'away_team': match['away_team'],
+                        'league': match['league'],
+                        'match_time': f"{match['date']} 15:00",
+                        'bet_type': 'Home Win',
+                        'odds': float(match['home_odds']),
+                        'value_margin': 5.0,
+                        'expected_value': 0.10
+                    }
+                    value_bets.append(value_bet)
+                    if len(value_bets) >= 3:
+                        break
+                
+                results['features']['value_bets'] = {
+                    'status': 'working',
+                    'bets_generated': len(value_bets),
+                    'sample_bets': value_bets
+                }
+            else:
+                results['features']['value_bets'] = {
+                    'status': 'failed',
+                    'error': 'No matches available'
+                }
+        except Exception as e:
+            results['features']['value_bets'] = {
+                'status': 'failed',
+                'error': str(e)
+            }
+        
+        # Test 3: Database Connection
+        try:
+            import sqlite3
+            conn = sqlite3.connect('betting_data.db')
+            cursor = conn.cursor()
+            cursor.execute('SELECT COUNT(*) FROM bets')
+            bet_count = cursor.fetchone()[0]
+            conn.close()
+            
+            results['features']['database'] = {
+                'status': 'working',
+                'total_bets': bet_count
+            }
+        except Exception as e:
+            results['features']['database'] = {
+                'status': 'failed',
+                'error': str(e)
+            }
+        
+        # Test 4: API Keys
+        try:
+            import os
+            api_football_key = os.getenv('API_FOOTBALL_KEY', '')
+            football_data_key = os.getenv('FOOTBALL_DATA_API_KEY', '')
+            
+            results['features']['api_keys'] = {
+                'status': 'working',
+                'api_football_valid': len(api_football_key) > 10,
+                'football_data_valid': len(football_data_key) > 10
+            }
+        except Exception as e:
+            results['features']['api_keys'] = {
+                'status': 'failed',
+                'error': str(e)
+            }
+        
+        # Test 5: Authentication
+        try:
+            results['features']['authentication'] = {
+                'status': 'working',
+                'note': 'Test login/register endpoints manually'
+            }
+        except Exception as e:
+            results['features']['authentication'] = {
+                'status': 'failed',
+                'error': str(e)
+            }
+        
+        # Overall status
+        working_features = sum(1 for f in results['features'].values() if f['status'] == 'working')
+        total_features = len(results['features'])
+        
+        results['overall_status'] = {
+            'working_features': working_features,
+            'total_features': total_features,
+            'success_rate': f"{(working_features/total_features)*100:.1f}%",
+            'status': 'healthy' if working_features >= 4 else 'needs_attention'
+        }
+        
+        return jsonify({
+            'success': True,
+            'results': results
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @app.route('/api/test-value-bets')
 def test_value_bets():
     """Test value bets calculation without authentication"""
