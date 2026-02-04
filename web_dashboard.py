@@ -410,6 +410,46 @@ def get_mock_value_bets():
         'timestamp': datetime.now().isoformat()
     })
 
+@app.route('/api/test-value-bets')
+def test_value_bets():
+    """Test value bets calculation without authentication"""
+    try:
+        # Get current matches
+        matches_data = data_collector.get_sample_data()
+        print(f"📊 Got {len(matches_data)} matches from data collector")
+        
+        # Try to find real value bets
+        try:
+            value_bets = value_detector.find_value_bets(matches_data)
+            print(f"💎 Found {len(value_bets)} value bets from AI model")
+            
+            # If AI model returns empty, create simple value bets
+            if not value_bets:
+                print("⚠️ AI model returned empty, creating simple value bets")
+                value_bets = create_simple_value_bets(matches_data)
+                
+        except Exception as ai_error:
+            print(f"❌ AI model failed: {ai_error}")
+            print("🔄 Using simple value bet calculation")
+            value_bets = create_simple_value_bets(matches_data)
+        
+        print(f"📋 Returning {len(value_bets)} value bets")
+        
+        return jsonify({
+            'success': True,
+            'matches_count': len(matches_data),
+            'value_bets_count': len(value_bets),
+            'value_bets': value_bets[:3],  # Return first 3 for testing
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        print(f"❌ Error in test-value-bets: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @app.route('/api/test-data')
 def test_data():
     """Test data collector without authentication"""
