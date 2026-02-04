@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=70.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-betting-bot"
+version = "1.0.0"
+description = "AI-powered sports betting analysis platform"
+authors = [{name = "AI Betting Bot", email = "admin@aibettingbot.com"}]
+license = {text = "MIT"}
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["*"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
