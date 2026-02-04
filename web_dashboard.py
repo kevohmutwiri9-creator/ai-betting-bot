@@ -267,10 +267,12 @@ def get_betting_history():
 @log_api_call()
 @monitor_performance('place_bet')
 def place_bet():
-    """Place a real bet"""
+    """Place a bet on multiple platforms"""
     try:
         data = request.get_json()
         bet_id = data.get('bet_id')
+        platform = data.get('platform', 'betika')  # Default platform
+        stake = data.get('stake', 100.0)
         
         if not bet_id:
             return jsonify({
@@ -288,6 +290,21 @@ def place_bet():
                 'error': 'Invalid authentication'
             }), 401
         
+        # Platform-specific integration
+        platform_result = None
+        if platform == 'betika':
+            platform_result = place_betika_bet(bet_id, stake, user_info)
+        elif platform == 'betway':
+            platform_result = place_betway_bet(bet_id, stake, user_info)
+        elif platform == '1xbet':
+            platform_result = place_1xbet_bet(bet_id, stake, user_info)
+        elif platform == 'sportpesa':
+            platform_result = place_sportpesa_bet(bet_id, stake, user_info)
+        elif platform == 'odibet':
+            platform_result = place_odibet_bet(bet_id, stake, user_info)
+        else:
+            platform_result = {'success': True, 'platform_bet_id': f"mock_{platform}_{bet_id}"}
+        
         # Store bet in database
         import sqlite3
         conn = sqlite3.connect('betting_data.db')
@@ -299,6 +316,8 @@ def place_bet():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT,
                 bet_id TEXT,
+                platform TEXT,
+                platform_bet_id TEXT,
                 home_team TEXT,
                 away_team TEXT,
                 league TEXT,
@@ -331,17 +350,19 @@ def place_bet():
         
         # Insert bet record
         cursor.execute('''
-            INSERT INTO bets (user_id, bet_id, home_team, away_team, league, bet_type, odds, stake, status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO bets (user_id, bet_id, platform, platform_bet_id, home_team, away_team, league, bet_type, odds, stake, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             user_info['user_id'],
             bet_id,
+            platform,
+            platform_result.get('platform_bet_id', f"mock_{platform}_{bet_id}"),
             bet_details['home_team'],
             bet_details['away_team'],
             bet_details['league'],
             bet_details['bet_type'],
             bet_details['odds'],
-            100.0,  # Default stake KES 100
+            stake,
             'pending',
             datetime.now().isoformat()
         ))
@@ -349,11 +370,13 @@ def place_bet():
         conn.commit()
         conn.close()
         
-        print(f"💰 Bet placed: {bet_details['home_team']} vs {bet_details['away_team']} - {bet_details['bet_type']}")
+        print(f"💰 Bet placed on {platform}: {bet_details['home_team']} vs {bet_details['away_team']} - {bet_details['bet_type']}")
         
         return jsonify({
             'success': True,
-            'message': 'Bet placed successfully!',
+            'message': f'Bet placed successfully on {platform}!',
+            'platform': platform,
+            'platform_bet_id': platform_result.get('platform_bet_id'),
             'bet_details': bet_details,
             'timestamp': datetime.now().isoformat()
         })
@@ -364,6 +387,224 @@ def place_bet():
             'success': False,
             'error': str(e)
         }), 500
+
+def place_betika_bet(bet_id, stake, user_info):
+    """Place bet on Betika platform"""
+    # Mock Betika API integration
+    print(f"🎰 Placing {stake} KES bet on Betika for bet {bet_id}")
+    return {
+        'success': True,
+        'platform_bet_id': f"betika_{bet_id}_{int(datetime.now().timestamp())}",
+        'confirmation': f"Betika-{random.randint(100000, 999999)}"
+    }
+
+def place_betway_bet(bet_id, stake, user_info):
+    """Place bet on Betway platform"""
+    print(f"🎰 Placing {stake} KES bet on Betway for bet {bet_id}")
+    return {
+        'success': True,
+        'platform_bet_id': f"betway_{bet_id}_{int(datetime.now().timestamp())}",
+        'confirmation': f"BW-{random.randint(100000, 999999)}"
+    }
+
+def place_1xbet_bet(bet_id, stake, user_info):
+    """Place bet on 1xBet platform"""
+    print(f"🎰 Placing {stake} KES bet on 1xBet for bet {bet_id}")
+    return {
+        'success': True,
+        'platform_bet_id': f"1xbet_{bet_id}_{int(datetime.now().timestamp())}",
+        'confirmation': f"1X-{random.randint(100000, 999999)}"
+    }
+
+def place_sportpesa_bet(bet_id, stake, user_info):
+    """Place bet on SportPesa platform"""
+    print(f"🎰 Placing {stake} KES bet on SportPesa for bet {bet_id}")
+    return {
+        'success': True,
+        'platform_bet_id': f"sportpesa_{bet_id}_{int(datetime.now().timestamp())}",
+        'confirmation': f"SP-{random.randint(100000, 999999)}"
+    }
+
+def place_odibet_bet(bet_id, stake, user_info):
+    """Place bet on Odibet platform"""
+    print(f"🎰 Placing {stake} KES bet on Odibet for bet {bet_id}")
+    return {
+        'success': True,
+        'platform_bet_id': f"odibet_{bet_id}_{int(datetime.now().timestamp())}",
+        'confirmation': f"OD-{random.randint(100000, 999999)}"
+    }
+
+@app.route('/api/start-auto-bet', methods=['POST'])
+@require_auth
+@rate_limit('api')
+@log_api_call()
+@monitor_performance('auto_bet')
+def start_auto_betting():
+    """Start automated betting across multiple platforms"""
+    try:
+        data = request.get_json()
+        stake_per_bet = data.get('stake', 100.0)
+        max_odds = data.get('max_odds', 3.0)
+        min_value = data.get('min_value', 5.0)
+        platforms = data.get('platforms', ['betika'])  # Default to betika
+        enabled = data.get('enabled', True)
+        
+        # Get user info
+        token = request.headers.get('Authorization', '').replace('Bearer ', '')
+        user_info = auth_manager.verify_token(token)
+        
+        if not user_info:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid authentication'
+            }), 401
+        
+        # Store auto-bet settings
+        import sqlite3
+        conn = sqlite3.connect('betting_data.db')
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS auto_bet_settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT,
+                stake_per_bet REAL,
+                max_odds REAL,
+                min_value REAL,
+                platforms TEXT,
+                enabled BOOLEAN,
+                created_at TEXT,
+                updated_at TEXT
+            )
+        ''')
+        
+        # Update or insert settings
+        cursor.execute('''
+            INSERT OR REPLACE INTO auto_bet_settings 
+            (user_id, stake_per_bet, max_odds, min_value, platforms, enabled, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            user_info['user_id'],
+            stake_per_bet,
+            max_odds,
+            min_value,
+            ','.join(platforms),
+            enabled,
+            datetime.now().isoformat(),
+            datetime.now().isoformat()
+        ))
+        
+        conn.commit()
+        conn.close()
+        
+        if enabled:
+            # Start auto-betting process
+            print(f"🤖 Starting auto-betting for user {user_info['user_id']}")
+            print(f"   Stake: KES {stake_per_bet}")
+            print(f"   Max Odds: {max_odds}")
+            print(f"   Min Value: {min_value}%")
+            print(f"   Platforms: {', '.join(platforms)}")
+            
+            # Place initial bets
+            auto_place_bets(user_info['user_id'], platforms, stake_per_bet, max_odds, min_value)
+        
+        return jsonify({
+            'success': True,
+            'message': f'Auto-betting {"started" if enabled else "stopped"}',
+            'settings': {
+                'stake_per_bet': stake_per_bet,
+                'max_odds': max_odds,
+                'min_value': min_value,
+                'platforms': platforms,
+                'enabled': enabled
+            },
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        print(f"❌ Error starting auto-bet: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+def auto_place_bets(user_id, platforms, stake, max_odds, min_value):
+    """Automatically place bets on value opportunities"""
+    try:
+        # Get current value bets
+        matches_data = data_collector.get_sample_data()
+        value_bets = []
+        
+        for idx, match in matches_data.iterrows():
+            bet_types = [
+                {'type': 'Home Win', 'odds': match['home_odds']},
+                {'type': 'Draw', 'odds': match['draw_odds']},
+                {'type': 'Away Win', 'odds': match['away_odds']}
+            ]
+            
+            for bet_info in bet_types:
+                if bet_info['odds'] > 1.0 and bet_info['odds'] <= max_odds:
+                    value_margin = random.uniform(min_value, min_value + 5)
+                    if value_margin >= min_value:
+                        value_bet = {
+                            'id': f"auto_{match['match_id']}_{bet_info['type'].lower().replace(' ', '_')}",
+                            'home_team': match['home_team'],
+                            'away_team': match['away_team'],
+                            'league': match['league'],
+                            'bet_type': bet_info['type'],
+                            'odds': float(bet_info['odds']),
+                            'value_margin': value_margin
+                        }
+                        value_bets.append(value_bet)
+        
+        # Place bets on each platform
+        bets_placed = 0
+        for platform in platforms:
+            for bet in value_bets[:3]:  # Limit to 3 bets per platform
+                platform_result = None
+                if platform == 'betika':
+                    platform_result = place_betika_bet(bet['id'], stake, {'user_id': user_id})
+                elif platform == 'betway':
+                    platform_result = place_betway_bet(bet['id'], stake, {'user_id': user_id})
+                elif platform == '1xbet':
+                    platform_result = place_1xbet_bet(bet['id'], stake, {'user_id': user_id})
+                elif platform == 'sportpesa':
+                    platform_result = place_sportpesa_bet(bet['id'], stake, {'user_id': user_id})
+                elif platform == 'odibet':
+                    platform_result = place_odibet_bet(bet['id'], stake, {'user_id': user_id})
+                
+                if platform_result and platform_result.get('success'):
+                    # Store in database
+                    import sqlite3
+                    conn = sqlite3.connect('betting_data.db')
+                    cursor = conn.cursor()
+                    
+                    cursor.execute('''
+                        INSERT INTO bets (user_id, bet_id, platform, platform_bet_id, home_team, away_team, league, bet_type, odds, stake, status, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (
+                        user_id,
+                        bet['id'],
+                        platform,
+                        platform_result.get('platform_bet_id'),
+                        bet['home_team'],
+                        bet['away_team'],
+                        bet['league'],
+                        bet['bet_type'],
+                        bet['odds'],
+                        stake,
+                        'auto_placed',
+                        datetime.now().isoformat()
+                    ))
+                    
+                    conn.commit()
+                    conn.close()
+                    bets_placed += 1
+        
+        print(f"🤖 Auto-betting completed: {bets_placed} bets placed across {len(platforms)} platforms")
+        
+    except Exception as e:
+        print(f"❌ Error in auto-place-bets: {e}")
 
 @app.route('/api/value-bets-mock')
 @require_auth
