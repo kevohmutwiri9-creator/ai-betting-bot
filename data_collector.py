@@ -529,13 +529,13 @@ class FootballDataCollector:
             print(f"🔑 API-Football key found: {len(api_football_key)} characters")
             
             if api_football_key and len(api_football_key) > 10:
-                print("🌐 Trying API-Football...")
-                # Add required parameters
-                url = "https://v3.football.api-sports.io/fixtures?league=39&season=2023"  # Premier League 2023
+                print("🌐 Trying API-Football for LIVE matches...")
+                # Get current live and upcoming matches
+                url = "https://v3.football.api-sports.io/fixtures?live=all"  # All live matches
                 headers = {"x-apisports-key": api_football_key}
                 
                 response = requests.get(url, headers=headers, timeout=10)
-                print(f"📡 API-Football response: {response.status_code}")
+                print(f"📡 API-Football LIVE response: {response.status_code}")
                 
                 if response.status_code == 200:
                     data = response.json()
@@ -543,7 +543,7 @@ class FootballDataCollector:
                     
                     for fixture in data.get('response', [])[:20]:
                         match = {
-                            'match_id': f"real_{fixture.get('fixture', {}).get('id')}",
+                            'match_id': f"live_{fixture.get('fixture', {}).get('id')}",
                             'home_team': fixture.get('teams', {}).get('home', {}).get('name', ''),
                             'away_team': fixture.get('teams', {}).get('away', {}).get('name', ''),
                             'league': fixture.get('league', {}).get('name', ''),
@@ -556,12 +556,36 @@ class FootballDataCollector:
                             real_matches.append(match)
                     
                     if real_matches:
-                        print(f"✅ SUCCESS: Got {len(real_matches)} real matches from API-Football")
+                        print(f"✅ SUCCESS: Got {len(real_matches)} LIVE matches from API-Football")
                         return pd.DataFrame(real_matches)
                     else:
-                        print("⚠️ API-Football returned no valid matches")
-                else:
-                    print(f"❌ API-Football error: {response.status_code} - {response.text}")
+                        print("⚠️ No live matches found, trying upcoming...")
+                        
+                        # Try upcoming matches if no live ones
+                        url_upcoming = "https://v3.football.api-sports.io/fixtures?league=39&season=2025"
+                        response_upcoming = requests.get(url_upcoming, headers=headers, timeout=10)
+                        
+                        if response_upcoming.status_code == 200:
+                            data_upcoming = response_upcoming.json()
+                            for fixture in data_upcoming.get('response', [])[:20]:
+                                match = {
+                                    'match_id': f"upcoming_{fixture.get('fixture', {}).get('id')}",
+                                    'home_team': fixture.get('teams', {}).get('home', {}).get('name', ''),
+                                    'away_team': fixture.get('teams', {}).get('away', {}).get('name', ''),
+                                    'league': fixture.get('league', {}).get('name', ''),
+                                    'date': fixture.get('fixture', {}).get('date', '').split('T')[0],
+                                    'home_odds': 2.10,
+                                    'draw_odds': 3.40,
+                                    'away_odds': 3.20
+                                }
+                                if match['home_team'] and match['away_team']:
+                                    real_matches.append(match)
+                            
+                            if real_matches:
+                                print(f"✅ SUCCESS: Got {len(real_matches)} upcoming matches from API-Football")
+                                return pd.DataFrame(real_matches)
+                
+                print(f"❌ API-Football error: {response.status_code} - {response.text}")
             else:
                 print("❌ API-Football key missing or too short")
                 
