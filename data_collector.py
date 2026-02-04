@@ -527,13 +527,14 @@ class FootballDataCollector:
             url = "https://v3.football.api-sports.io/fixtures"
             headers = {"x-apisports-key": os.getenv('API_FOOTBALL_KEY', '')}
             
-            if headers["x-apisports-key"]:
+            if headers["x-apisports-key"] and len(headers["x-apisports-key"]) > 10:
+                print("🔑 Using API-Football key for real data")
                 response = requests.get(url, headers=headers, timeout=10)
                 if response.status_code == 200:
                     data = response.json()
                     real_matches = []
                     
-                    for fixture in data.get('response', [])[:10]:  # Limit to 10 matches
+                    for fixture in data.get('response', [])[:20]:  # Get 20 matches
                         match = {
                             'match_id': f"real_{fixture.get('fixture', {}).get('id')}",
                             'home_team': fixture.get('teams', {}).get('home', {}).get('name', ''),
@@ -544,16 +545,59 @@ class FootballDataCollector:
                             'draw_odds': 3.40,
                             'away_odds': 3.20
                         }
-                        real_matches.append(match)
+                        if match['home_team'] and match['away_team']:  # Only add valid matches
+                            real_matches.append(match)
                     
                     if real_matches:
-                        print(f"✅ Got {len(real_matches)} real matches from API")
-                        return real_matches
+                        print(f"✅ Got {len(real_matches)} real matches from API-Football")
+                        return pd.DataFrame(real_matches)
+            else:
+                print("❌ Invalid API-Football key")
+                
         except Exception as e:
             print(f"❌ Real API failed: {e}")
         
+        # Try Football-Data API as backup
+        try:
+            import requests
+            from datetime import datetime
+            
+            football_data_key = os.getenv('FOOTBALL_DATA_API_KEY', '')
+            if football_data_key and len(football_data_key) > 10:
+                print("� Trying Football-Data API")
+                url = "https://api.football-data.org/v4/matches"
+                headers = {"X-Auth-Token": football_data_key}
+                
+                response = requests.get(url, headers=headers, timeout=10)
+                if response.status_code == 200:
+                    data = response.json()
+                    real_matches = []
+                    
+                    for match in data.get('matches', [])[:15]:
+                        real_match = {
+                            'match_id': f"fd_{match.get('id')}",
+                            'home_team': match.get('homeTeam', {}).get('name', ''),
+                            'away_team': match.get('awayTeam', {}).get('name', ''),
+                            'league': match.get('competition', {}).get('name', ''),
+                            'date': match.get('utcDate', '').split('T')[0],
+                            'home_odds': 2.15,
+                            'draw_odds': 3.30,
+                            'away_odds': 3.10
+                        }
+                        if real_match['home_team'] and real_match['away_team']:
+                            real_matches.append(real_match)
+                    
+                    if real_matches:
+                        print(f"✅ Got {len(real_matches)} matches from Football-Data API")
+                        return pd.DataFrame(real_matches)
+            else:
+                print("❌ Invalid Football-Data API key")
+                
+        except Exception as e:
+            print(f"❌ Football-Data API failed: {e}")
+        
         # Fallback to sample data
-        print("📊 Using sample data (no API key or API failed)")
+        print("📊 Using sample data (APIs failed or no valid keys)")
         sample_matches = [
             {
                 'match_id': 'man_ars_001',

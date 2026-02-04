@@ -2,6 +2,8 @@ from flask import Flask, render_template, jsonify, request
 import pandas as pd
 from datetime import datetime, timedelta
 import json
+import sqlite3
+import os
 from data_collector import FootballDataCollector
 from ai_model import BettingAIModel
 from value_detector import ValueBetDetector
@@ -207,11 +209,45 @@ def auto_bet():
 @app.route('/api/betting-history')
 @require_auth
 def get_betting_history():
-    """API endpoint to get betting history"""
+    """Get user's betting history"""
     try:
-        # Check if there are any actual betting records
-        # For now, return empty history since no betting has occurred
+        token = request.headers.get('Authorization', '').replace('Bearer ', '')
+        user_info = auth_manager.verify_token(token)
+        
+        if not user_info:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid authentication'
+            }), 401
+        
+        import sqlite3
+        conn = sqlite3.connect('betting_data.db')
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT * FROM bets WHERE user_id = ? ORDER BY created_at DESC LIMIT 50
+        ''', (user_info['user_id'],))
+        
+        bets = cursor.fetchall()
+        conn.close()
+        
         history = []
+        for bet in bets:
+            history.append({
+                'id': bet[0],
+                'bet_id': bet[2],
+                'home_team': bet[3],
+                'away_team': bet[4],
+                'league': bet[5],
+                'bet_type': bet[6],
+                'odds': bet[7],
+                'stake': bet[8],
+                'status': bet[9],
+                'created_at': bet[10],
+                'settled_at': bet[11],
+                'result': bet[12],
+                'profit_loss': bet[13]
+            })
         
         return jsonify({
             'success': True,
@@ -219,6 +255,110 @@ def get_betting_history():
         })
         
     except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/place-bet', methods=['POST'])
+@require_auth
+@rate_limit('api')
+@log_api_call()
+@monitor_performance('place_bet')
+def place_bet():
+    """Place a real bet"""
+    try:
+        data = request.get_json()
+        bet_id = data.get('bet_id')
+        
+        if not bet_id:
+            return jsonify({
+                'success': False,
+                'error': 'Bet ID is required'
+            }), 400
+        
+        # Get user info from auth token
+        token = request.headers.get('Authorization', '').replace('Bearer ', '')
+        user_info = auth_manager.verify_token(token)
+        
+        if not user_info:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid authentication'
+            }), 401
+        
+        # Store bet in database
+        import sqlite3
+        conn = sqlite3.connect('betting_data.db')
+        cursor = conn.cursor()
+        
+        # Create bets table if not exists
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS bets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT,
+                bet_id TEXT,
+                home_team TEXT,
+                away_team TEXT,
+                league TEXT,
+                bet_type TEXT,
+                odds REAL,
+                stake REAL,
+                status TEXT DEFAULT 'pending',
+                created_at TEXT,
+                settled_at TEXT,
+                result TEXT,
+                profit_loss REAL
+            )
+        ''')
+        
+        # Get bet details from current value bets
+        matches_data = data_collector.get_sample_data()
+        value_bets = create_simple_value_bets(matches_data)
+        
+        bet_details = None
+        for bet in value_bets:
+            if bet['id'] == bet_id:
+                bet_details = bet
+                break
+        
+        if not bet_details:
+            return jsonify({
+                'success': False,
+                'error': 'Bet not found'
+            }), 404
+        
+        # Insert bet record
+        cursor.execute('''
+            INSERT INTO bets (user_id, bet_id, home_team, away_team, league, bet_type, odds, stake, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            user_info['user_id'],
+            bet_id,
+            bet_details['home_team'],
+            bet_details['away_team'],
+            bet_details['league'],
+            bet_details['bet_type'],
+            bet_details['odds'],
+            100.0,  # Default stake KES 100
+            'pending',
+            datetime.now().isoformat()
+        ))
+        
+        conn.commit()
+        conn.close()
+        
+        print(f"💰 Bet placed: {bet_details['home_team']} vs {bet_details['away_team']} - {bet_details['bet_type']}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Bet placed successfully!',
+            'bet_details': bet_details,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        print(f"❌ Error placing bet: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
