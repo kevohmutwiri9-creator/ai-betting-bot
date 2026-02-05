@@ -12,6 +12,15 @@ import json
 import os
 from dotenv import load_dotenv
 
+# Import configuration
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from config import (
+    FOOTBALL_DATA_API_KEY, API_FOOTBALL_KEY, SPORTMONKS_TOKEN,
+    ENABLE_FOOTBALL_DATA_API, ENABLE_API_FOOTBALL, ENABLE_SPORTMONKS,
+    MATCHES_UPDATE_INTERVAL, ODDS_UPDATE_INTERVAL, LIVE_SCORES_UPDATE_INTERVAL
+)
+
 # Configure basic logging
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -23,9 +32,9 @@ class FootballDataCollector:
     def __init__(self, db_path="betting_data.db"):
         self.db_path = db_path
         self.api_keys = {
-            'football_data': os.getenv('FOOTBALL_DATA_API_KEY', ''),
-            'api_football': os.getenv('API_FOOTBALL_KEY', ''),
-            'sportmonks': os.getenv('SPORTMONKS_TOKEN', '')
+            'football_data': FOOTBALL_DATA_API_KEY,
+            'api_football': API_FOOTBALL_KEY,
+            'sportmonks': SPORTMONKS_TOKEN
         }
         self.base_urls = {
             'football_data': 'https://api.football-data.org/v4',
@@ -72,15 +81,17 @@ class FootballDataCollector:
     
     def get_live_matches(self):
         """Get currently live matches from API"""
-        # Try football-data.org first
-        data = self.fetch_from_football_data_api('matches?status=LIVE')
-        if data and 'matches' in data:
-            return self._parse_football_data_matches(data['matches'])
+        # Try football-data.org first if enabled
+        if ENABLE_FOOTBALL_DATA_API:
+            data = self.fetch_from_football_data_api('matches?status=LIVE')
+            if data and 'matches' in data:
+                return self._parse_football_data_matches(data['matches'])
         
-        # Fallback to API-Football
-        data = self.fetch_from_api_football('fixtures?status=LIVE')
-        if data and 'response' in data:
-            return self._parse_api_football_matches(data['response'])
+        # Fallback to API-Football if enabled
+        if ENABLE_API_FOOTBALL:
+            data = self.fetch_from_api_football('fixtures?status=LIVE')
+            if data and 'response' in data:
+                return self._parse_api_football_matches(data['response'])
         
         return []
     
@@ -92,14 +103,25 @@ class FootballDataCollector:
         for i in range(days_ahead):
             date = (today + timedelta(days=i)).strftime('%Y-%m-%d')
             
-            # Try football-data.org
-            data = self.fetch_from_football_data_api(f'matches?date={date}')
-            if data and 'matches' in data:
-                parsed = self._parse_football_data_matches(data['matches'])
-                matches.extend(parsed)
+            # Try football-data.org if enabled
+            if ENABLE_FOOTBALL_DATA_API:
+                data = self.fetch_from_football_data_api(f'matches?date={date}')
+                if data and 'matches' in data:
+                    parsed = self._parse_football_data_matches(data['matches'])
+                    matches.extend(parsed)
+                    
+                # Rate limiting
+                time.sleep(0.5)
+            
+            # Try API-Football if enabled
+            if ENABLE_API_FOOTBALL:
+                data = self.fetch_from_api_football(f'fixtures?date={date}')
+                if data and 'response' in data:
+                    parsed = self._parse_api_football_matches(data['response'])
+                    matches.extend(parsed)
                 
-            # Rate limiting
-            time.sleep(0.5)
+                # Rate limiting
+                time.sleep(0.5)
         
         return matches
     
@@ -913,13 +935,44 @@ class FootballDataCollector:
     
     def get_matches_by_date(self, date_filter='all'):
         """Get matches filtered by date: live, today, tomorrow, yesterday, or all"""
-        # Get all sample data
+        from datetime import datetime, timedelta
+        
+        # Try to get real data first
+        real_matches = []
+        
+        if date_filter == 'live':
+            real_matches = self.get_live_matches()
+        elif date_filter == 'today':
+            today = datetime.now().strftime('%Y-%m-%d')
+            if ENABLE_FOOTBALL_DATA_API:
+                data = self.fetch_from_football_data_api(f'matches?date={today}')
+                if data and 'matches' in data:
+                    real_matches = self._parse_football_data_matches(data['matches'])
+            if not real_matches and ENABLE_API_FOOTBALL:
+                data = self.fetch_from_api_football(f'fixtures?date={today}')
+                if data and 'response' in data:
+                    real_matches = self._parse_api_football_matches(data['response'])
+        elif date_filter == 'tomorrow':
+            tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+            if ENABLE_FOOTBALL_DATA_API:
+                data = self.fetch_from_football_data_api(f'matches?date={tomorrow}')
+                if data and 'matches' in data:
+                    real_matches = self._parse_football_data_matches(data['matches'])
+            if not real_matches and ENABLE_API_FOOTBALL:
+                data = self.fetch_from_api_football(f'fixtures?date={tomorrow}')
+                if data and 'response' in data:
+                    real_matches = self._parse_api_football_matches(data['response'])
+        
+        # If we got real matches, return them
+        if real_matches:
+            return real_matches
+        
+        # Fall back to sample data for demo
         all_matches = self.get_sample_data()
         
         if date_filter == 'all':
             return all_matches
         
-        from datetime import datetime, timedelta
         today = datetime.now().strftime('%Y-%m-%d')
         tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
         yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
@@ -931,7 +984,7 @@ class FootballDataCollector:
             if date_filter == 'live':
                 # For demo, show first 3 matches as "live"
                 if match in all_matches[:3]:
-                    filtered_matches.append(match)
+                    filtered_matches.append({**match, 'status': 'LIVE'})
             elif date_filter == 'today' and match_date == today:
                 filtered_matches.append(match)
             elif date_filter == 'tomorrow' and match_date == tomorrow:

@@ -6,24 +6,84 @@ services:
     plan: free
     dockerfilePath: ./Dockerfile
     envVars:
+      # Telegram Bot Config
       - key: TELEGRAM_BOT_TOKEN
         sync: false
       - key: TELEGRAM_BOT_USERNAME
         sync: false
+      - key: WEBHOOK_SECRET
+        sync: false
+
+      # Football API Keys
+      - key: API_FOOTBALL_KEY
+        sync: false
+      - key: FOOTBALL_DATA_API_KEY
+        sync: false
+
+      # Security Keys
       - key: API_SECRET_KEY
         sync: false
       - key: SESSION_SECRET_KEY
         sync: false
       - key: JWT_SECRET_KEY
         sync: false
-      - key: FOOTBALL_DATA_API_KEY
-        sync: false
-      - key: API_FOOTBALL_KEY
-        sync: false
+
+      # Update Intervals
+      - key: MATCHES_UPDATE_INTERVAL
+        value: "60"
+      - key: ODDS_UPDATE_INTERVAL
+        value: "30"
+      - key: LIVE_SCORES_UPDATE_INTERVAL
+        value: "15"
+
+      # API Enable Flags
+      - key: ENABLE_FOOTBALL_DATA_API
+        value: "true"
+      - key: ENABLE_API_FOOTBALL
+        value: "true"
+      - key: ENABLE_SPORTMONKS
+        value: "false"
+      - key: ENABLE_BETIKA_API
+        value: "true"
+
+      # Kelly Criterion Settings
+      - key: KELLY_FRACTION
+        value: "0.5"
+      - key: MAX_STAKE_PERCENT
+        value: "0.1"
+      - key: MIN_STAKE
+        value: "1.0"
+
+      # Auto-Betting Settings
+      - key: AUTO_BET_ENABLED
+        value: "false"
+      - key: MIN_VALUE_THRESHOLD
+        value: "0.05"
+      - key: CONFIDENCE_THRESHOLD
+        value: "0.6"
+
+      # Browser Automation
+      - key: HEADLESS_BROWSER
+        value: "true"
+
+      # Logging & Debug
       - key: DEBUG_MODE
-        value: false
+        value: "false"
+      - key: LOG_LEVEL
+        value: "INFO"
       - key: ENVIRONMENT
-        value: production
+        value: "production"
+
+      # Notifications
+      - key: ENABLE_TELEGRAM_NOTIFICATIONS
+        value: "true"
+      - key: NOTIFY_ON_BET_PLACED
+        value: "true"
+      - key: NOTIFY_ON_BET_RESULT
+        value: "true"
+
+    # Start command
+    startCommand: gunicorn main:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
 
   # Telegram Bot Worker Service
   - type: worker
@@ -32,24 +92,46 @@ services:
     plan: free
     dockerfilePath: ./Dockerfile
     envVars:
+      # Telegram Bot Config
       - key: TELEGRAM_BOT_TOKEN
         sync: false
       - key: TELEGRAM_BOT_USERNAME
         sync: false
+
+      # Football API Keys
+      - key: API_FOOTBALL_KEY
+        sync: false
+      - key: FOOTBALL_DATA_API_KEY
+        sync: false
+
+      # Security Keys
       - key: API_SECRET_KEY
         sync: false
       - key: SESSION_SECRET_KEY
         sync: false
-      - key: JWT_SECRET_KEY
-        sync: false
-      - key: FOOTBALL_DATA_API_KEY
-        sync: false
-      - key: API_FOOTBALL_KEY
-        sync: false
+
+      # API Enable Flags
+      - key: ENABLE_FOOTBALL_DATA_API
+        value: "true"
+      - key: ENABLE_API_FOOTBALL
+        value: "true"
+
+      # Kelly Criterion Settings
+      - key: KELLY_FRACTION
+        value: "0.5"
+      - key: MAX_STAKE_PERCENT
+        value: "0.1"
+
+      # Logging
       - key: DEBUG_MODE
-        value: false
-      - key: ENVIRONMENT
-        value: production
+        value: "false"
+      - key: LOG_LEVEL
+        value: "INFO"
+
+      # Notifications
+      - key: ENABLE_TELEGRAM_NOTIFICATIONS
+        value: "true"
+
     # Override command to run Telegram bot
     override:
       - python
