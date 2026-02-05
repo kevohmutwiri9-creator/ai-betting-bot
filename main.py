@@ -78,13 +78,21 @@ def run_web():
 
 def run_telegram(token, username):
     """Start Telegram bot"""
+    # Try to get token/username from environment variables if not provided
+    if not token or token == "YOUR_TELEGRAM_BOT_TOKEN":
+        token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    if not username:
+        username = os.environ.get("TELEGRAM_BOT_USERNAME", "")
+    
     if not token or token == "YOUR_TELEGRAM_BOT_TOKEN":
         print("❌ Please provide a valid Telegram bot token")
         print("💡 Get your token from @BotFather on Telegram")
+        print("💡 Or set TELEGRAM_BOT_TOKEN environment variable")
         return
     
     if not username:
         print("❌ Please provide your bot username")
+        print("💡 Or set TELEGRAM_BOT_USERNAME environment variable")
         return
     
     print(f"🤖 Starting Telegram Bot @{username}...")

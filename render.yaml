@@ -1,6 +1,7 @@
 services:
+  # Web Dashboard Service
   - type: web
-    name: ai-betting-bot
+    name: ai-betting-bot-web
     env: docker
     plan: free
     dockerfilePath: ./Dockerfile
@@ -23,3 +24,36 @@ services:
         value: false
       - key: ENVIRONMENT
         value: production
+
+  # Telegram Bot Worker Service
+  - type: worker
+    name: ai-betting-bot-telegram
+    env: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_BOT_USERNAME
+        sync: false
+      - key: API_SECRET_KEY
+        sync: false
+      - key: SESSION_SECRET_KEY
+        sync: false
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: FOOTBALL_DATA_API_KEY
+        sync: false
+      - key: API_FOOTBALL_KEY
+        sync: false
+      - key: DEBUG_MODE
+        value: false
+      - key: ENVIRONMENT
+        value: production
+    # Override command to run Telegram bot
+    override:
+      - python
+      - main.py
+      - --telegram
+      - $TELEGRAM_BOT_TOKEN
+      - $TELEGRAM_BOT_USERNAME

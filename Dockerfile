@@ -56,5 +56,5 @@ EXPOSE 10000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:10000/health || exit 1
 
-# Run with gunicorn for production
+# Default command - runs web dashboard
 CMD ["gunicorn", "--chdir", "/app", "--bind", "0.0.0.0:10000", "--workers", "2", "--timeout", "120", "web_dashboard:app"]
