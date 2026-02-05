@@ -135,7 +135,7 @@ Upgrade to premium for:
 
 📧 **Contact Admin**
 For manual activation:
-• Telegram: @admin
+• Telegram: @Klaus_debbugg
 • Email: kevohmutwiri35@gmail.com
 • Username: @Klaus_debbugg
 
@@ -379,9 +379,17 @@ Example:
         home_team = parts[0].strip()
         away_team = ' vs '.join(parts[1:]).strip()
         
-        await update.message.reply_text(
-            f"🔍 Analyzing: {home_team} vs {away_team}..."
-        )
+        # Handle both regular messages and callback queries
+        if update.callback_query:
+            await update.callback_query.edit_message_text(
+                f"🔍 Analyzing: {home_team} vs {away_team}..."
+            )
+            chat = update.callback_query.message
+        else:
+            await update.message.reply_text(
+                f"🔍 Analyzing: {home_team} vs {away_team}..."
+            )
+            chat = update.message
         
         # For demo, show sample analysis
         analysis_message = f"""
@@ -405,7 +413,7 @@ For full AI-powered predictions, subscribe to value bets!
 📧 Contact: kevohmutwiri35@gmail.com
         """
         
-        await update.message.reply_text(analysis_message, parse_mode='Markdown')
+        await chat.reply_text(analysis_message, parse_mode='Markdown')
     
     async def button_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle inline button clicks"""
