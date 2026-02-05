@@ -297,17 +297,15 @@ For support and manual activation:
             value_bets = self.value_detector.find_value_bets(matches_data)
             
             if not value_bets:
+                no_bets_message = (
+                    "❌ No value bets found today.\n\n"
+                    "Try again later for new matches!\n\n"
+                    "📧 Contact: kevohmutwiri35@gmail.com"
+                )
                 if update.callback_query:
-                    await update.callback_query.edit_message_text(
-                        "❌ No value bets found today.\n\n"
-                        "Try again later for new matches!\n\n"
-                        "📧 Contact: kevohmutwiri35@gmail.com"
-                    )
+                    await update.callback_query.edit_message_text(no_bets_message)
                 else:
-                    await update.message.reply_text(
-                        "❌ No value bets found today.\n\n"
-                        "Try again later for new matches!"
-                    )
+                    await update.message.reply_text(no_bets_message)
                 return
             
             # Format and send results

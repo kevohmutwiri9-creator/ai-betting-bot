@@ -82,6 +82,11 @@ def index():
     """Main dashboard page"""
     return render_template('index.html')
 
+@app.route('/health')
+def health():
+    """Health check endpoint for Render"""
+    return jsonify({'status': 'healthy', 'timestamp': datetime.now().isoformat()})
+
 @app.route('/api/docs')
 def api_docs():
     """API documentation page (redirects to Swagger UI if available)"""
