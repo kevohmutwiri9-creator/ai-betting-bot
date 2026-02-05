@@ -362,8 +362,12 @@ class BettingAIModel:
             self.is_trained = model_data['is_trained']
             
             print(f"Model loaded from {self.model_path}")
-        except FileNotFoundError:
-            print("No saved model found. Please train the model first.")
+        except (FileNotFoundError, ModuleNotFoundError, ImportError) as e:
+            print(f"Could not load model ({e}). Training new model...")
+            self.train_model(self.generate_sample_training_data(500), np.array([0] * 500))
+        except Exception as e:
+            print(f"Model loading error: {e}. Training new model...")
+            self.train_model(self.generate_sample_training_data(500), np.array([0] * 500))
     
     def generate_sample_training_data(self, num_samples=500):
         """Generate sample training data for demonstration"""
