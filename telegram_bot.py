@@ -246,6 +246,13 @@ Welcome! I analyze football matches and find value bets using AI.
 
 📊 **Available Commands:**
 /valuebets - Get today's value bets
+/today - Get today's matches
+/tomorrow - Get tomorrow's matches
+/live - Get live matches now
+/premier - Premier League matches
+/laliga - La Liga matches
+/seriea - Serie A matches
+/bundesliga - Bundesliga matches
 /analyze - Analyze specific match
 /stats - Show betting statistics
 /premium - Upgrade to premium
@@ -440,6 +447,112 @@ For full AI-powered predictions, subscribe to value bets!
             except:
                 pass
     
+    async def get_today_matches(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /today command - Get today's matches"""
+        await self._send_matches_by_date(update, context, 'today')
+    
+    async def get_tomorrow_matches(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /tomorrow command - Get tomorrow's matches"""
+        await self._send_matches_by_date(update, context, 'tomorrow')
+    
+    async def get_live_matches(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /live command - Get live matches"""
+        await self._send_matches_by_date(update, context, 'live')
+    
+    async def get_league_matches(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /premier, /laliga, /seriea, /bundesliga commands"""
+        # Get league from command
+        command = update.message.text.split('@')[0].lower().replace('/', '')
+        league_map = {
+            'premier': 'Premier League',
+            'laliga': 'La Liga',
+            'seriea': 'Serie A',
+            'bundesliga': 'Bundesliga'
+        }
+        league = league_map.get(command, 'Premier League')
+        
+        await update.message.reply_text(f"🔍 Fetching {league} matches...")
+        
+        try:
+            # Get matches filtered by league
+            matches_data = self.data_collector.get_league_matches(league.lower().replace(' ', '_'))
+            
+            if not matches_data:
+                # Fall back to real API
+                matches_data = self.data_collector.get_matches_by_date('all')
+                matches_data = [m for m in matches_data if league in m.get('league', '')]
+            
+            if not matches_data:
+                await update.message.reply_text(f"❌ No {league} matches found.\n\nTry again later!")
+                return
+            
+            # Format and send matches
+            message = f"⚽ *{league} Matches*\n\n"
+            for match in matches_data[:10]:
+                message += f"🏆 {match['home_team']} vs {match['away_team']}\n"
+                message += f"📅 {match['date']} | {match.get('league', 'Unknown')}\n"
+                if match.get('home_odds'):
+                    message += f"💰 Odds: {match['home_odds']} | {match['draw_odds']} | {match['away_odds']}\n"
+                message += "\n"
+            
+            await update.message.reply_text(message, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error fetching league matches: {e}")
+            await update.message.reply_text("❌ Error fetching matches. Try again later!")
+    
+    async def _send_matches_by_date(self, update: Update, context: ContextTypes.DEFAULT_TYPE, date_filter: str):
+        """Helper to send matches filtered by date"""
+        date_labels = {'today': 'Today', 'tomorrow': 'Tomorrow', 'live': 'LIVE'}
+        
+        if update.callback_query:
+            await update.callback_query.answer()
+            chat_id = update.callback_query.message.chat_id
+        else:
+            chat_id = update.message.chat_id
+            await update.message.reply_text(f"🔍 Fetching {date_labels.get(date_filter, date_filter)} matches...")
+        
+        try:
+            # Get real matches from API
+            matches_data = self.data_collector.get_matches_by_date(date_filter)
+            
+            if not matches_data:
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=f"❌ No {date_labels.get(date_filter, date_filter)} matches found.\n\nThe API might be rate-limited or no matches scheduled.\n\nTry again later!"
+                )
+                return
+            
+            # Format matches
+            message = f"⚽ *{date_labels.get(date_filter, date_filter)}'s Matches*\n\n"
+            for match in matches_data[:10]:
+                status = match.get('status', 'SCHEDULED')
+                message += f"🏆 {match['home_team']} vs {match['away_team']}\n"
+                message += f"📅 {match['date']} | {match.get('league', 'Unknown')}\n"
+                if match.get('home_goals') is not None:
+                    message += f"🔢 Score: {match['home_goals']} - {match['away_goals']} ({status})\n"
+                else:
+                    message += f"⏰ Status: {status}\n"
+                if match.get('home_odds'):
+                    message += f"💰 Odds: {match['home_odds']} | {match['draw_odds']} | {match['away_odds']}\n"
+                message += "\n"
+            
+            message += f"📊 Total: {len(matches_data)} matches\n"
+            message += "💎 Use /valuebets to find value bets!"
+            
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=message,
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            logger.error(f"Error fetching {date_filter} matches: {e}")
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text="❌ Error fetching matches. Please try again later!"
+            )
+    
     def run(self):
         """Run the bot"""
         try:
@@ -448,6 +561,13 @@ For full AI-powered predictions, subscribe to value bets!
             # Add handlers
             application.add_handler(CommandHandler("start", self.start))
             application.add_handler(CommandHandler("valuebets", self.value_bets))
+            application.add_handler(CommandHandler("today", self.get_today_matches))
+            application.add_handler(CommandHandler("tomorrow", self.get_tomorrow_matches))
+            application.add_handler(CommandHandler("live", self.get_live_matches))
+            application.add_handler(CommandHandler("premier", self.get_league_matches))
+            application.add_handler(CommandHandler("laliga", self.get_league_matches))
+            application.add_handler(CommandHandler("seriea", self.get_league_matches))
+            application.add_handler(CommandHandler("bundesliga", self.get_league_matches))
             application.add_handler(CommandHandler("analyze", self.analyze))
             application.add_handler(CommandHandler("stats", self.stats))
             application.add_handler(CommandHandler("premium", self.premium))
