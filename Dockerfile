@@ -2,7 +2,7 @@
 # Multi-stage build for optimized image size
 
 # Stage 1: Builder
-FROM python:3.13-slim-bookworm AS builder
+FROM python:3.11-slim-bookworm AS builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -19,7 +19,7 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
     && pip install --prefix=/install --no-cache-dir -r requirements.txt
 
 # Stage 2: Production
-FROM python:3.13-slim-bookworm AS production
+FROM python:3.11-slim-bookworm AS production
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
