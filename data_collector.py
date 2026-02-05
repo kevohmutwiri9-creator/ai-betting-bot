@@ -937,6 +937,9 @@ class FootballDataCollector:
         """Get matches filtered by date: live, today, tomorrow, yesterday, or all"""
         from datetime import datetime, timedelta
         
+        # Rate limiting - wait between API calls
+        time.sleep(1.1)  # Respect free tier limits (10 req/min)
+        
         # Try to get real data first
         real_matches = []
         
