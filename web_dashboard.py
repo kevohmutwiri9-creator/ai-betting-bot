@@ -211,6 +211,26 @@ def get_league_matches(league_id):
             'error': str(e)
         }), 500
 
+@app.route('/api/matches')
+@app.route('/api/matches/<date_filter>')
+@rate_limit('api')
+def get_matches(date_filter='all'):
+    """API endpoint to get matches filtered by date"""
+    try:
+        # Get matches for the selected date filter
+        matches_data = data_collector.get_matches_by_date(date_filter)
+        
+        return jsonify({
+            'success': True,
+            'data': matches_data,
+            'filter': date_filter
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @app.route('/api/auto-bet', methods=['POST'])
 @require_auth
 @require_premium

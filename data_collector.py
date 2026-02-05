@@ -910,6 +910,36 @@ class FootballDataCollector:
         data = pd.read_sql_query(query, conn, params=(limit,))
         conn.close()
         return data
+    
+    def get_matches_by_date(self, date_filter='all'):
+        """Get matches filtered by date: live, today, tomorrow, yesterday, or all"""
+        # Get all sample data
+        all_matches = self.get_sample_data()
+        
+        if date_filter == 'all':
+            return all_matches
+        
+        from datetime import datetime, timedelta
+        today = datetime.now().strftime('%Y-%m-%d')
+        tomorrow = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+        yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+        
+        filtered_matches = []
+        for match in all_matches:
+            match_date = match.get('date', '')
+            
+            if date_filter == 'live':
+                # For demo, show first 3 matches as "live"
+                if match in all_matches[:3]:
+                    filtered_matches.append(match)
+            elif date_filter == 'today' and match_date == today:
+                filtered_matches.append(match)
+            elif date_filter == 'tomorrow' and match_date == tomorrow:
+                filtered_matches.append(match)
+            elif date_filter == 'yesterday' and match_date == yesterday:
+                filtered_matches.append(match)
+        
+        return filtered_matches
 
 if __name__ == "__main__":
     collector = FootballDataCollector()
