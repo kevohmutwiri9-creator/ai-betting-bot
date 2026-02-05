@@ -279,9 +279,9 @@ class BettingAIModel:
                 home_strength,
                 away_strength,
                 1.0,  # Home advantage
-                match['home_odds'],
-                match['draw_odds'],
-                match['away_odds']
+                float(match['home_odds']) if match.get('home_odds') not in [None, '', 'N/A'] else 2.5,
+                float(match['draw_odds']) if match.get('draw_odds') not in [None, '', 'N/A'] else 3.2,
+                float(match['away_odds']) if match.get('away_odds') not in [None, '', 'N/A'] else 2.8
             ]
             
             # Add form features if enabled
@@ -314,7 +314,8 @@ class BettingAIModel:
                     labels.append(0)  # Away win
             else:
                 # For prediction, use odds to simulate labels
-                labels.append(2 if match['home_odds'] < 2.5 else 0)
+                home_odds = float(match['home_odds']) if match.get('home_odds') not in [None, '', 'N/A'] else 2.5
+                labels.append(2 if home_odds < 2.5 else 0)
         
         return np.array(features), np.array(labels)
     
