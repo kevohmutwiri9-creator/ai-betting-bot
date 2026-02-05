@@ -5,13 +5,14 @@ Use at your own risk
 """
 
 import os
+import sys
 import json
 import time
 import logging
+import getpass
 from typing import Dict, Optional, List
 from dataclasses import dataclass
 from datetime import datetime
-from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ class BetRequest:
     platform: str
     home_team: str
     away_team: str
-    bet_type: str  # home, draw, away
+    bet_type: str
     odds: float
     stake: float
     match_id: str = ""
@@ -53,10 +54,18 @@ class BetResult:
     timestamp: str = ""
 
 
+def get_secure_input(prompt: str, is_password: bool = False) -> str:
+    """Get secure input from user"""
+    if is_password:
+        return getpass.getpass(prompt)
+    else:
+        return input(prompt)
+
+
 class BaseBrowserBot:
     """Base class for browser automation on betting sites"""
     
-    def __init__(self, username: str, password: str, headless: bool = True):
+    def __init__(self, username: str = None, password: str = None, headless: bool = True):
         self.username = username
         self.password = password
         self.headless = headless
@@ -73,23 +82,17 @@ class BaseBrowserBot:
         if self.headless:
             options.add_argument("--headless")
         
-        # Anti-detection measures
         options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_argument("--start-maximized")
         options.add_argument("--disable-extensions")
         options.add_argument("--disable-popup-blocking")
         options.add_argument("--disable-notifications")
-        
-        # User agent
         options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-        
-        # Disable webdriver flag
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option('useAutomationExtension', False)
         
         self.driver = webdriver.Chrome(options=options)
         
-        # Execute anti-detection script
         self.driver.execute_script(
             "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
         )
@@ -103,21 +106,17 @@ class BaseBrowserBot:
             self.driver.get(login_url)
             time.sleep(3)
             
-            # Find and fill username
             username_field = self.driver.find_element(By.NAME, "username")
             username_field.clear()
             username_field.send_keys(self.username)
             
-            # Find and fill password
             password_field = self.driver.find_element(By.NAME, "password")
             password_field.clear()
             password_field.send_keys(self.password)
             
-            # Click login button
             login_button = self.driver.find_element(By.XPATH, "//button[@type='submit']")
             login_button.click()
             
-            # Wait for login
             time.sleep(5)
             
             self.logged_in = True
@@ -154,7 +153,7 @@ class BaseBrowserBot:
 class BetikaBrowserBot(BaseBrowserBot):
     """Browser automation for Betika Kenya"""
     
-    def __init__(self, username: str, password: str, headless: bool = True):
+    def __init__(self, username: str = None, password: str = None, headless: bool = True):
         super().__init__(username, password, headless)
         self.base_url = "https://www.betika.com"
         self.login_url = f"{self.base_url}/login"
@@ -169,28 +168,6 @@ class BetikaBrowserBot(BaseBrowserBot):
         self.driver.get(match_url)
         time.sleep(3)
     
-    def _find_odds_button(self, team_name: str, bet_type: str):
-        """Find the odds button for a selection"""
-        try:
-            # Try different selectors
-            selectors = [
-                f"//button[contains(., '{team_name}')]",
-                f"//div[contains(@class, 'selection') and contains(., '{team_name}')]",
-                f"//span[contains(., '{team_name}')]/following-sibling::span[@class='odds']",
-            ]
-            
-            for selector in selectors:
-                try:
-                    elem = self.driver.find_element(By.XPATH, selector)
-                    return elem
-                except:
-                    continue
-            
-            return None
-        except Exception as e:
-            logger.debug(f"Error finding odds button: {e}")
-            return None
-    
     def place_bet(self, bet: BetRequest) -> BetResult:
         """Place a bet on Betika"""
         if not self.logged_in:
@@ -198,16 +175,23 @@ class BetikaBrowserBot(BaseBrowserBot):
                 return BetResult(success=False, error="Not logged in")
         
         try:
-            # Navigate to match
             self.navigate_to_match(bet.match_id)
             time.sleep(2)
             
-            # Find and click the odds button
-            button = self._find_odds_button(
-                bet.home_team if bet.bet_type == "home" else 
-                bet.away_team if bet.bet_type == "away" else "Draw",
-                bet.bet_type
-            )
+            team_name = bet.home_team if bet.bet_type == "home" else bet.away_team if bet.bet_type == "away" else "Draw"
+            
+            selectors = [
+                f"//button[contains(., '{team_name}')]",
+                f"//div[contains(@class, 'selection') and contains(., '{team_name}')]",
+            ]
+            
+            button = None
+            for selector in selectors:
+                try:
+                    button = self.driver.find_element(By.XPATH, selector)
+                    break
+                except:
+                    continue
             
             if not button:
                 return BetResult(success=False, error="Could not find selection")
@@ -215,18 +199,15 @@ class BetikaBrowserBot(BaseBrowserBot):
             button.click()
             time.sleep(1)
             
-            # Enter stake
             stake_input = self.driver.find_element(By.NAME, "stake")
             stake_input.clear()
             stake_input.send_keys(str(bet.stake))
             
-            # Click place bet button
             place_button = self.driver.find_element(By.XPATH, "//button[contains(., 'Place Bet')]")
             place_button.click()
             
             time.sleep(2)
             
-            # Get confirmation
             bet_id = self.driver.current_url.split("/")[-1]
             
             return BetResult(
@@ -244,7 +225,7 @@ class BetikaBrowserBot(BaseBrowserBot):
 class SportPesaBrowserBot(BaseBrowserBot):
     """Browser automation for SportPesa Kenya"""
     
-    def __init__(self, username: str, password: str, headless: bool = True):
+    def __init__(self, username: str = None, password: str = None, headless: bool = True):
         super().__init__(username, password, headless)
         self.base_url = "https://www.sportpesa.co.ke"
         self.login_url = f"{self.base_url}/login"
@@ -253,12 +234,6 @@ class SportPesaBrowserBot(BaseBrowserBot):
         """Login to SportPesa"""
         return super().login(self.login_url)
     
-    def navigate_to_match(self, match_id: str):
-        """Navigate to a match"""
-        match_url = f"{self.base_url}/events/{match_id}"
-        self.driver.get(match_url)
-        time.sleep(3)
-    
     def place_bet(self, bet: BetRequest) -> BetResult:
         """Place a bet on SportPesa"""
         if not self.logged_in:
@@ -266,31 +241,13 @@ class SportPesaBrowserBot(BaseBrowserBot):
                 return BetResult(success=False, error="Not logged in")
         
         try:
-            self.navigate_to_match(bet.match_id)
+            self.driver.get(f"{self.base_url}/events/{bet.match_id}")
             time.sleep(2)
             
-            # SportPesa specific selectors
-            team_selectors = [
-                f"//div[contains(@class, 'event-team') and contains(., '{bet.home_team}')]",
-                f"//button[@data-team='{bet.home_team}']",
-            ]
-            
-            for selector in team_selectors:
-                try:
-                    elem = self.driver.find_element(By.XPATH, selector)
-                    elem.click()
-                    break
-                except:
-                    continue
-            
-            time.sleep(1)
-            
-            # Enter stake
             stake_input = self.driver.find_element(By.ID, "bet-amount")
             stake_input.clear()
             stake_input.send_keys(str(bet.stake))
             
-            # Place bet
             place_button = self.driver.find_element(By.ID, "place-bet")
             place_button.click()
             
@@ -309,7 +266,7 @@ class SportPesaBrowserBot(BaseBrowserBot):
 class OdibetBrowserBot(BaseBrowserBot):
     """Browser automation for Odibet"""
     
-    def __init__(self, username: str, password: str, headless: bool = True):
+    def __init__(self, username: str = None, password: str = None, headless: bool = True):
         super().__init__(username, password, headless)
         self.base_url = "https://www.odibet.com"
         self.login_url = f"{self.base_url}/login"
@@ -328,7 +285,6 @@ class OdibetBrowserBot(BaseBrowserBot):
             self.driver.get(f"{self.base_url}/en/betting")
             time.sleep(3)
             
-            # Odibet specific
             selection = self.driver.find_element(
                 By.XPATH, f"//div[contains(., '{bet.home_team}')]"
             )
@@ -361,29 +317,85 @@ class AutoBettingSystem:
     def __init__(self, config_file: str = None):
         self.bots = {}
         self.bet_history = []
-        self.load_config(config_file)
+        self.credentials_file = config_file
+        self.credentials = {}
+        self.load_credentials()
     
-    def load_config(self, config_file: str = None):
-        """Load credentials from config or environment"""
-        load_dotenv()
+    def _initialize_bots(self):
+        """Initialize bots with loaded credentials"""
+        for platform, creds in self.credentials.items():
+            if platform == 'betika':
+                self.bots['betika'] = BetikaBrowserBot(creds['username'], creds['password'])
+            elif platform == 'sportpesa':
+                self.bots['sportpesa'] = SportPesaBrowserBot(creds['username'], creds['password'])
+            elif platform == 'odibet':
+                self.bots['odibet'] = OdibetBrowserBot(creds['username'], creds['password'])
+    
+    def load_credentials(self):
+        """Load credentials from file or prompt user"""
+        if self.credentials_file and os.path.exists(self.credentials_file):
+            try:
+                with open(self.credentials_file, 'r') as f:
+                    self.credentials = json.load(f)
+                logger.info("Credentials loaded from file")
+                self._initialize_bots()
+                return
+            except Exception as e:
+                logger.warning(f"Could not load credentials file: {e}")
         
-        # Betika credentials
-        betika_user = os.getenv("BETIKA_USERNAME")
-        betika_pass = os.getenv("BETIKA_PASSWORD")
+        if sys.stdin.isatty():
+            self._prompt_credentials()
+        else:
+            print("\n" + "=" * 60)
+            print("INTERACTIVE MODE REQUIRED")
+            print("=" * 60)
+            print("Run in interactive terminal to enter credentials.")
+            print("=" * 60 + "\n")
+            self._initialize_bots()
+    
+    def _prompt_credentials(self):
+        """Prompt user for credentials securely"""
+        print("\n" + "=" * 60)
+        print("SECURE CREDENTIALS INPUT")
+        print("=" * 60)
+        print("Enter your betting site credentials (hidden for security)")
+        print("=" * 60 + "\n")
+        
+        # Betika
+        print("[1/3] Betika")
+        betika_user = get_secure_input("  Username: ")
+        betika_pass = get_secure_input("  Password: ", is_password=True)
         if betika_user and betika_pass:
-            self.bots["betika"] = BetikaBrowserBot(betika_user, betika_pass)
+            self.credentials['betika'] = {'username': betika_user, 'password': betika_pass}
         
-        # SportPesa credentials
-        sportpesa_user = os.getenv("SPORTPESA_USERNAME")
-        sportpesa_pass = os.getenv("SPORTPESA_PASSWORD")
+        # SportPesa
+        print("\n[2/3] SportPesa")
+        sportpesa_user = get_secure_input("  Username: ")
+        sportpesa_pass = get_secure_input("  Password: ", is_password=True)
         if sportpesa_user and sportpesa_pass:
-            self.bots["sportpesa"] = SportPesaBrowserBot(sportpesa_user, sportpesa_pass)
+            self.credentials['sportpesa'] = {'username': sportpesa_user, 'password': sportpesa_pass}
         
-        # Odibet credentials
-        odibet_user = os.getenv("ODIBET_USERNAME")
-        odibet_pass = os.getenv("ODIBET_PASSWORD")
+        # Odibet
+        print("\n[3/3] Odibet")
+        odibet_user = get_secure_input("  Username: ")
+        odibet_pass = get_secure_input("  Password: ", is_password=True)
         if odibet_user and odibet_pass:
-            self.bots["odibet"] = OdibetBrowserBot(odibet_user, odibet_pass)
+            self.credentials['odibet'] = {'username': odibet_user, 'password': odibet_pass}
+        
+        self._initialize_bots()
+        
+        print("\n" + "=" * 60)
+        print("Credentials secured!")
+        print("=" * 60)
+    
+    def save_credentials(self, filepath: str = "credentials.enc"):
+        """Save credentials to file"""
+        try:
+            with open(filepath, 'w') as f:
+                json.dump(self.credentials, f)
+            logger.info(f"Credentials saved to {filepath}")
+        except Exception as e:
+            logger.error(f"Could not save credentials: {e}")
     
     def place_bet(self, bet: BetRequest) -> BetResult:
         """Place a bet on the specified platform"""
@@ -411,10 +423,13 @@ class AutoBettingSystem:
         return self.bet_history
 
 
-def test_browser_automation():
-    """Test browser automation setup"""
+def main():
+    """Main entry point - run with secure credential input"""
     print("=" * 60)
-    print("Browser Automation Test")
+    print("AI BETTING BOT - BROWSER AUTOMATION")
+    print("=" * 60)
+    print("\nWARNING: Automated betting may violate Terms of Service")
+    print("Use at your own risk\n")
     print("=" * 60)
     
     if not SELENIUM_AVAILABLE:
@@ -422,43 +437,16 @@ def test_browser_automation():
         print("Run: pip install selenium webdriver-manager")
         return
     
-    print("\nSelenium is available!")
-    print("\nTo use browser automation:")
-    print("1. Add credentials to .env file:")
-    print("   BETIKA_USERNAME=your_username")
-    print("   BETIKA_PASSWORD=your_password")
-    print("   SPORTPESA_USERNAME=your_username")
-    print("   SPORTPESA_PASSWORD=your_password")
-    print("   ODIBET_USERNAME=your_username")
-    print("   ODIBET_PASSWORD=your_password")
-    print("\n2. Usage example:")
-    print("""
-from auto_better import AutoBettingSystem, BetRequest
-
-# Create betting system
-system = AutoBettingSystem()
-
-# Create a bet request
-bet = BetRequest(
-    platform="betika",
-    home_team="Arsenal",
-    away_team="Chelsea",
-    bet_type="home",
-    odds=2.0,
-    stake=100,
-    match_id="12345"
-)
-
-# Place the bet
-result = system.place_bet(bet)
-print(f"Bet placed: {result.success}")
-    """)
+    system = AutoBettingSystem()
+    
+    save = input("\nSave credentials for next time? (y/n): ").lower()
+    if save == 'y':
+        system.save_credentials()
     
     print("\n" + "=" * 60)
-    print("WARNING: Automated betting may violate Terms of Service")
-    print("Use at your own risk")
+    print("System ready! Use system.place_bet() to place bets.")
     print("=" * 60)
 
 
 if __name__ == "__main__":
-    test_browser_automation()
+    main()
