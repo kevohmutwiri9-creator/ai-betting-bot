@@ -19,7 +19,58 @@ from validators import (
 from rate_limiter import rate_limit, auth_rate_limit, premium_rate_limit
 from logger import logger, log_api_call, monitor_performance, log_security_event
 
+# Try to import Flask-RESTX for Swagger, fall back to basic documentation
+try:
+    from flask_restx import Api, Resource, fields, reqparse
+    HAS_RESTX = True
+except ImportError:
+    HAS_RESTX = False
+    Api = None
+    Resource = None
+    fields = None
+    reqparser = None
+
 app = Flask(__name__)
+
+# Initialize Swagger API documentation
+if HAS_RESTX:
+    api = Api(app, version='1.0', title='AI Betting Bot API',
+              description='API for AI-powered betting predictions and value bet detection',
+              doc='/api/docs')
+    
+    ns = api.namespace('api', description='Betting API operations')
+    
+    # API Models for documentation
+    user_model = api.model('User', {
+        'username': fields.String(required=True, description='Username'),
+        'email': fields.String(required=True, description='Email address'),
+        'api_key': fields.String(description='API key for authentication')
+    })
+    
+    bet_model = api.model('Bet', {
+        'match_id': fields.String(description='Unique match identifier'),
+        'home_team': fields.String(description='Home team name'),
+        'away_team': fields.String(description='Away team name'),
+        'recommended_outcome': fields.String(description='Recommended bet outcome'),
+        'odds': fields.Float(description='Decimal odds'),
+        'value_margin': fields.Float(description='Value margin percentage'),
+        'expected_value': fields.Float(description='Expected value'),
+        'confidence': fields.String(description='Confidence level')
+    })
+    
+    match_model = api.model('Match', {
+        'match_id': fields.String(description='Unique match identifier'),
+        'home_team': fields.String(description='Home team name'),
+        'away_team': fields.String(description='Away team name'),
+        'league': fields.String(description='League name'),
+        'date': fields.String(description='Match date'),
+        'home_odds': fields.Float(description='Home win odds'),
+        'draw_odds': fields.Float(description='Draw odds'),
+        'away_odds': fields.Float(description='Away win odds')
+    })
+    
+    auth_parser = reqparse.RequestParser()
+    auth_parser.add_argument('Authorization', location='headers', required=True, help='Bearer token')
 
 # Initialize components
 data_collector = FootballDataCollector()
@@ -30,6 +81,26 @@ value_detector = ValueBetDetector()
 def index():
     """Main dashboard page"""
     return render_template('index.html')
+
+@app.route('/api/docs')
+def api_docs():
+    """API documentation page (redirects to Swagger UI if available)"""
+    if HAS_RESTX:
+        return api.__self._render_apidoc
+    else:
+        return jsonify({
+            'message': 'Flask-RESTX not installed. Install with: pip install flask-restx',
+            'endpoints': [
+                {'path': '/api/register', 'method': 'POST', 'description': 'Register new user'},
+                {'path': '/api/login', 'method': 'POST', 'description': 'Authenticate user'},
+                {'path': '/api/leagues', 'method': 'GET', 'description': 'Get available leagues'},
+                {'path': '/api/league-matches/<league_id>', 'method': 'GET', 'description': 'Get league matches'},
+                {'path': '/api/auto-bet', 'method': 'POST', 'description': 'Auto-betting functionality'},
+                {'path': '/api/betting-history', 'method': 'GET', 'description': 'Get betting history'},
+                {'path': '/api/place-bet', 'method': 'POST', 'description': 'Place a bet'},
+                {'path': '/health', 'method': 'GET', 'description': 'Health check'}
+            ]
+        })
 
 @app.route('/health')
 def health():

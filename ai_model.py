@@ -1,30 +1,280 @@
 import pandas as pd
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import accuracy_score, classification_report
+from sklearn.metrics import accuracy_score, classification_report, mean_squared_error
 import pickle
 import sqlite3
+import os
+from datetime import datetime, timedelta
+from collections import defaultdict
 
 class BettingAIModel:
-    def __init__(self, model_path="betting_model.pkl"):
+    def __init__(self, model_path="betting_model.pkl", db_path="betting_data.db"):
         self.model_path = model_path
+        self.db_path = db_path
         self.model = None
         self.scaler = StandardScaler()
         self.is_trained = False
+        self.team_strengths_cache = {}
+        self.cache_timeout = 3600  # 1 hour cache
+        
+    def calculate_team_strength(self, team_name, league=None, days_back=90):
+        """Calculate team strength based on historical performance from database"""
+        cache_key = f"{team_name}_{league or 'all'}_{days_back}"
+        
+        # Check cache first
+        if cache_key in self.team_strengths_cache:
+            cached_time, strength = self.team_strengths_cache[cache_key]
+            if (datetime.now() - cached_time).seconds < self.cache_timeout:
+                return strength
+        
+        # Query database for historical performance
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cutoff_date = (datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')
+        
+        # Calculate performance for home games
+        cursor.execute('''
+            SELECT 
+                COUNT(*) as matches,
+                SUM(CASE WHEN home_goals > away_goals THEN 1 ELSE 0 END) as wins,
+                SUM(CASE WHEN home_goals = away_goals THEN 1 ELSE 0 END) as draws,
+                SUM(CASE WHEN home_goals < away_goals THEN 1 ELSE 0 END) as losses,
+                SUM(home_goals) as goals_scored,
+                SUM(away_goals) as goals_conceded
+            FROM matches 
+            WHERE home_team = ? AND date >= ?
+        ''', (team_name, cutoff_date))
+        
+        home_stats = cursor.fetchone()
+        
+        # Calculate performance for away games
+        cursor.execute('''
+            SELECT 
+                COUNT(*) as matches,
+                SUM(CASE WHEN away_goals > home_goals THEN 1 ELSE 0 END) as wins,
+                SUM(CASE WHEN away_goals = home_goals THEN 1 ELSE 0 END) as draws,
+                SUM(CASE WHEN away_goals < home_goals THEN 1 ELSE 0 END) as losses,
+                SUM(away_goals) as goals_scored,
+                SUM(home_goals) as goals_conceded
+            FROM matches 
+            WHERE away_team = ? AND date >= ?
+        ''', (team_name, cutoff_date))
+        
+        away_stats = cursor.fetchone()
+        conn.close()
+        
+        # Default values for new/unknown teams
+        if home_stats[0] == 0 and away_stats[0] == 0:
+            # Use league-average performance with slight random variation
+            return self._get_default_strength()
+        
+        # Combine home and away stats
+        total_matches = home_stats[0] + away_stats[0]
+        total_wins = home_stats[1] + away_stats[1]
+        total_draws = home_stats[2] + away_stats[2]
+        total_losses = home_stats[3] + away_stats[3]
+        total_goals_scored = home_stats[4] + away_stats[4]
+        total_goals_conceded = home_stats[5] + away_stats[5]
+        
+        if total_matches == 0:
+            return self._get_default_strength()
+        
+        # Calculate strength score (0-1 scale)
+        win_rate = total_wins / total_matches
+        draw_rate = total_draws / total_matches
+        loss_rate = total_losses / total_matches
+        
+        goal_difference = (total_goals_scored - total_goals_conceded) / total_matches
+        goals_per_match = total_goals_scored / total_matches
+        
+        # Weighted strength calculation
+        strength = (win_rate * 0.5 + 
+                   (1 - loss_rate) * 0.2 + 
+                   min(goal_difference + 1, 2) / 2 * 0.2 + 
+                   min(goals_per_match / 3, 1) * 0.1)
+        
+        # Clamp to reasonable range
+        strength = max(0.2, min(0.95, strength))
+        
+        # Cache the result
+        self.team_strengths_cache[cache_key] = (datetime.now(), strength)
+        
+        return strength
     
-    def prepare_training_data(self, match_data):
-        """Prepare data for training the AI model"""
+    def _get_default_strength(self):
+        """Return default strength for unknown teams"""
+        return 0.5
+    
+    def calculate_form(self, team_name, league=None, matches=5):
+        """Calculate recent form (last N matches)"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        # Get last N home matches
+        cursor.execute('''
+            SELECT home_goals, away_goals 
+            FROM matches 
+            WHERE home_team = ? 
+            ORDER BY date DESC 
+            LIMIT ?
+        ''', (team_name, matches))
+        
+        home_matches = cursor.fetchall()
+        
+        # Get last N away matches
+        cursor.execute('''
+            SELECT away_goals, home_goals 
+            FROM matches 
+            WHERE away_team = ? 
+            ORDER BY date DESC 
+            LIMIT ?
+        ''', (team_name, matches))
+        
+        away_matches = cursor.fetchall()
+        conn.close()
+        
+        # Calculate form score (points from last N matches)
+        form_score = 0
+        total_matches = 0
+        
+        for goals_for, goals_against in home_matches:
+            if goals_for > goals_against:
+                form_score += 3
+            elif goals_for == goals_against:
+                form_score += 1
+            total_matches += 1
+        
+        for goals_for, goals_against in away_matches:
+            if goals_for > goals_against:
+                form_score += 3
+            elif goals_for == goals_against:
+                form_score += 1
+            total_matches += 1
+        
+        if total_matches == 0:
+            return 0.5  # Default form
+        
+        return (form_score / (total_matches * 3))  # Normalize to 0-1
+    
+    def calculate_head_to_head(self, home_team, away_team, matches=10):
+        """Calculate head-to-head performance between two teams"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT home_goals, away_goals 
+            FROM matches 
+            WHERE (home_team = ? AND away_team = ?) OR (home_team = ? AND away_team = ?)
+            ORDER BY date DESC 
+            LIMIT ?
+        ''', (home_team, away_team, away_team, home_team, matches))
+        
+        h2h_matches = cursor.fetchall()
+        conn.close()
+        
+        if not h2h_matches:
+            return {'home_wins': 0, 'away_wins': 0, 'draws': 0, 'avg_goals': 0}
+        
+        home_wins = sum(1 for h, a in h2h_matches if h > a)
+        away_wins = sum(1 for h, a in h2h_matches if a > h)
+        draws = sum(1 for h, a in h2h_matches if h == a)
+        avg_goals = sum(h + a for h, a in h2h_matches) / len(h2h_matches)
+        
+        return {
+            'home_wins': home_wins,
+            'away_wins': away_wins,
+            'draws': draws,
+            'avg_goals': avg_goals
+        }
+    
+    def train_model(self, features, labels, use_ensemble=True, hyperparameter_tuning=False):
+        """Train the AI model with optional ensemble and hyperparameter tuning"""
+        print("Training AI model...")
+        
+        # Split data
+        X_train, X_test, y_train, y_test = train_test_split(
+            features, labels, test_size=0.2, random_state=42
+        )
+        
+        # Scale features
+        X_train_scaled = self.scaler.fit_transform(X_train)
+        X_test_scaled = self.scaler.transform(X_test)
+        
+        if use_ensemble:
+            # Train ensemble of models
+            from sklearn.ensemble import VotingClassifier
+            from sklearn.linear_model import LogisticRegression
+            from sklearn.svm import SVC
+            
+            rf = RandomForestClassifier(n_estimators=100, max_depth=10, random_state=42)
+            gb = GradientBoostingClassifier(n_estimators=100, max_depth=5, random_state=42)
+            lr = LogisticRegression(max_iter=1000, random_state=42)
+            
+            self.model = VotingClassifier(
+                estimators=[('rf', rf), ('gb', gb), ('lr', lr)],
+                voting='soft'  # Use probability averaging
+            )
+        else:
+            if hyperparameter_tuning:
+                # Perform hyperparameter tuning
+                param_grid = {
+                    'n_estimators': [50, 100, 200],
+                    'max_depth': [5, 10, 15, None],
+                    'min_samples_split': [2, 5, 10]
+                }
+                
+                grid_search = GridSearchCV(
+                    RandomForestClassifier(random_state=42),
+                    param_grid,
+                    cv=5,
+                    scoring='accuracy',
+                    n_jobs=-1
+                )
+                grid_search.fit(X_train_scaled, y_train)
+                
+                self.model = grid_search.best_estimator_
+                print(f"Best parameters: {grid_search.best_params_}")
+            else:
+                self.model = RandomForestClassifier(
+                    n_estimators=100,
+                    max_depth=10,
+                    random_state=42
+                )
+        
+        self.model.fit(X_train_scaled, y_train)
+        
+        # Evaluate
+        y_pred = self.model.predict(X_test_scaled)
+        accuracy = accuracy_score(y_test, y_pred)
+        
+        # Cross-validation score
+        cv_scores = cross_val_score(self.model, X_train_scaled, y_train, cv=5)
+        
+        print(f"Model accuracy: {accuracy:.2f}")
+        print(f"Cross-validation scores: {cv_scores.mean():.2f} (+/- {cv_scores.std() * 2:.2f})")
+        print("\nClassification Report:")
+        print(classification_report(y_test, y_pred))
+        
+        self.is_trained = True
+        self.save_model()
+        
+        return accuracy
+    
+    def prepare_training_data(self, match_data, include_form=True, include_h2h=True):
+        """Prepare data for training with enhanced features"""
         features = []
         labels = []
         
         for _, match in match_data.iterrows():
-            # Calculate features
-            home_strength = self.calculate_team_strength(match['home_team'])
-            away_strength = self.calculate_team_strength(match['away_team'])
+            # Calculate base features
+            home_strength = self.calculate_team_strength(match['home_team'], match.get('league'))
+            away_strength = self.calculate_team_strength(match['away_team'], match.get('league'))
             
-            # Feature vector
+            # Build feature vector
             feature_vector = [
                 home_strength,
                 away_strength,
@@ -33,6 +283,24 @@ class BettingAIModel:
                 match['draw_odds'],
                 match['away_odds']
             ]
+            
+            # Add form features if enabled
+            if include_form:
+                home_form = self.calculate_form(match['home_team'], match.get('league'))
+                away_form = self.calculate_form(match['away_team'], match.get('league'))
+                feature_vector.extend([home_form, away_form])
+            
+            # Add head-to-head features if enabled
+            if include_h2h:
+                h2h = self.calculate_head_to_head(match['home_team'], match['away_team'])
+                total_h2h = h2h['home_wins'] + h2h['away_wins'] + h2h['draws']
+                if total_h2h > 0:
+                    h2h_home_ratio = (h2h['home_wins'] + 0.5 * h2h['draws']) / total_h2h
+                    h2h_goals = h2h['avg_goals']
+                else:
+                    h2h_home_ratio = 0.5
+                    h2h_goals = 2.5
+                feature_vector.extend([h2h_home_ratio, h2h_goals])
             
             features.append(feature_vector)
             
@@ -49,53 +317,6 @@ class BettingAIModel:
                 labels.append(2 if match['home_odds'] < 2.5 else 0)
         
         return np.array(features), np.array(labels)
-    
-    def calculate_team_strength(self, team_name):
-        """Calculate team strength based on historical performance"""
-        # Simplified - in real app, query database
-        team_strengths = {
-            'Manchester United': 0.75,
-            'Arsenal': 0.80,
-            'Liverpool': 0.85,
-            'Chelsea': 0.78,
-            'Barcelona': 0.88,
-            'Real Madrid': 0.90
-        }
-        return team_strengths.get(team_name, 0.5)
-    
-    def train_model(self, features, labels):
-        """Train the RandomForest model"""
-        print("Training AI model...")
-        
-        # Split data
-        X_train, X_test, y_train, y_test = train_test_split(
-            features, labels, test_size=0.2, random_state=42
-        )
-        
-        # Scale features
-        X_train_scaled = self.scaler.fit_transform(X_train)
-        X_test_scaled = self.scaler.transform(X_test)
-        
-        # Train model
-        self.model = RandomForestClassifier(
-            n_estimators=100,
-            max_depth=10,
-            random_state=42
-        )
-        self.model.fit(X_train_scaled, y_train)
-        
-        # Evaluate
-        y_pred = self.model.predict(X_test_scaled)
-        accuracy = accuracy_score(y_test, y_pred)
-        
-        print(f"Model accuracy: {accuracy:.2f}")
-        print("\nClassification Report:")
-        print(classification_report(y_test, y_pred))
-        
-        self.is_trained = True
-        self.save_model()
-        
-        return accuracy
     
     def predict_match_outcome(self, match_features):
         """Predict probability of match outcomes"""

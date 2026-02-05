@@ -1,11 +1,49 @@
 import pandas as pd
 import numpy as np
 from ai_model import BettingAIModel
+from logger import logger
 
 class ValueBetDetector:
-    def __init__(self, model_path="betting_model.pkl"):
-        self.ai_model = BettingAIModel(model_path)
+    def __init__(self, model_path="betting_model.pkl", db_path="betting_data.db"):
+        self.ai_model = BettingAIModel(model_path, db_path)
         self.min_value_threshold = 0.05  # 5% minimum value margin
+        self.kelly_fraction = 0.25  # Fraction of Kelly to use (conservative)
+        
+    def calculate_kelly_stake(self, probability, odds, fraction=None):
+        """
+        Calculate optimal stake using Kelly Criterion
+        Kelly formula: f* = (bp - q) / b
+        Where:
+            b = odds - 1 (decimal odds)
+            p = probability of winning
+            q = probability of losing (1 - p)
+        
+        Args:
+            probability: Your estimated probability of winning (0-1)
+            odds: Decimal odds offered by bookmaker
+            fraction: Fraction of Kelly to use (1 = full Kelly, 0.25 = quarter Kelly)
+        
+        Returns:
+            Optimal stake as fraction of bankroll (0 if negative EV)
+        """
+        if fraction is None:
+            fraction = self.kelly_fraction
+        
+        # Calculate Kelly fraction
+        b = odds - 1  # Net odds
+        q = 1 - probability  # Probability of losing
+        
+        kelly_fraction = (b * probability - q) / b
+        
+        # Apply fractional Kelly
+        adjusted_kelly = kelly_fraction * fraction
+        
+        # Only bet if positive expected value
+        if adjusted_kelly <= 0:
+            return 0
+        
+        # Cap at reasonable maximum (e.g., 10% of bankroll)
+        return min(adjusted_kelly, 0.10)
     
     def calculate_implied_probability(self, odds):
         """Calculate implied probability from odds"""
@@ -126,8 +164,8 @@ class ValueBetDetector:
         # Where Payout = odds and Stake = 1
         return (ai_prob * odds) - 1
     
-    def get_best_value_bet(self, value_analysis, match):
-        """Get the best value bet from the analysis"""
+    def get_best_value_bet(self, value_analysis, match, bankroll=1000):
+        """Get the best value bet from the analysis with Kelly stake sizing"""
         outcomes = ['home_win', 'draw', 'away_win']
         best_bet = None
         highest_ev = -float('inf')
@@ -141,6 +179,11 @@ class ValueBetDetector:
                 analysis['expected_value'] > highest_ev):
                 
                 highest_ev = analysis['expected_value']
+                
+                # Calculate Kelly stake
+                ai_prob = analysis['ai_probability']
+                odds = analysis['odds']
+                kelly_stake = self.calculate_kelly_stake(ai_prob, odds)
                 
                 # Determine outcome name
                 outcome_name = outcome.replace('_', ' ').title()
@@ -157,6 +200,8 @@ class ValueBetDetector:
                     'bookmaker_probability': round(analysis['bookmaker_probability'] * 100, 1),
                     'value_margin': round(analysis['value_margin'] * 100, 1),
                     'expected_value': round(analysis['expected_value'], 3),
+                    'kelly_stake_pct': round(kelly_stake * 100, 2),
+                    'recommended_stake': round(kelly_stake * bankroll, 2),
                     'confidence': self.calculate_confidence(analysis['value_margin'])
                 }
         

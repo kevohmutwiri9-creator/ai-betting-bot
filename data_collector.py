@@ -12,12 +12,173 @@ import json
 import os
 from dotenv import load_dotenv
 
+# Configure basic logging
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 load_dotenv()
 
 class FootballDataCollector:
     def __init__(self, db_path="betting_data.db"):
         self.db_path = db_path
+        self.api_keys = {
+            'football_data': os.getenv('FOOTBALL_DATA_API_KEY', ''),
+            'api_football': os.getenv('API_FOOTBALL_KEY', ''),
+            'sportmonks': os.getenv('SPORTMONKS_TOKEN', '')
+        }
+        self.base_urls = {
+            'football_data': 'https://api.football-data.org/v4',
+            'api_football': 'https://v1.football.api-sports.io',
+            'sportmonks': 'https://api.sportmonks.com/v3/football'
+        }
+        self.session = requests.Session()
+        self.session.headers.update({'Accept': 'application/json'})
         self.init_database()
+    
+    def fetch_from_football_data_api(self, endpoint, params=None):
+        """Fetch data from football-data.org API"""
+        if not self.api_keys['football_data']:
+            logger.warning("Football Data API key not configured")
+            return None
+        
+        url = f"{self.base_urls['football_data']}/{endpoint}"
+        headers = {'X-Auth-Token': self.api_keys['football_data']}
+        
+        try:
+            response = self.session.get(url, headers=headers, params=params, timeout=10)
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as e:
+            logger.error(f"Football Data API error: {e}")
+            return None
+    
+    def fetch_from_api_football(self, endpoint, params=None):
+        """Fetch data from API-Football"""
+        if not self.api_keys['api_football']:
+            logger.warning("API-Football key not configured")
+            return None
+        
+        url = f"{self.base_urls['api_football']}/{endpoint}"
+        headers = {'x-apisports-key': self.api_keys['api_football']}
+        
+        try:
+            response = self.session.get(url, headers=headers, params=params, timeout=10)
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as e:
+            logger.error(f"API-Football error: {e}")
+            return None
+    
+    def get_live_matches(self):
+        """Get currently live matches from API"""
+        # Try football-data.org first
+        data = self.fetch_from_football_data_api('matches?status=LIVE')
+        if data and 'matches' in data:
+            return self._parse_football_data_matches(data['matches'])
+        
+        # Fallback to API-Football
+        data = self.fetch_from_api_football('fixtures?status=LIVE')
+        if data and 'response' in data:
+            return self._parse_api_football_matches(data['response'])
+        
+        return []
+    
+    def get_upcoming_matches(self, days_ahead=7):
+        """Get upcoming matches for the next N days"""
+        today = datetime.now()
+        matches = []
+        
+        for i in range(days_ahead):
+            date = (today + timedelta(days=i)).strftime('%Y-%m-%d')
+            
+            # Try football-data.org
+            data = self.fetch_from_football_data_api(f'matches?date={date}')
+            if data and 'matches' in data:
+                parsed = self._parse_football_data_matches(data['matches'])
+                matches.extend(parsed)
+                
+            # Rate limiting
+            time.sleep(0.5)
+        
+        return matches
+    
+    def get_match_odds(self, match_id):
+        """Get odds for a specific match from multiple bookmakers"""
+        data = self.fetch_from_football_data_api(f'matches/{match_id}/odds')
+        if data and 'odds' in data:
+            return self._parse_odds(data['odds'])
+        return []
+    
+    def get_team_stats(self, team_id):
+        """Get team statistics from API"""
+        data = self.fetch_from_football_data_api(f'teams/{team_id}')
+        if data:
+            return {
+                'id': data.get('id'),
+                'name': data.get('name'),
+                'country': data.get('country'),
+                'founded': data.get('founded'),
+                'venue': data.get('venue', {}).get('name') if data.get('venue') else None
+            }
+        return None
+    
+    def _parse_football_data_matches(self, matches_data):
+        """Parse matches from football-data.org format"""
+        matches = []
+        for match in matches_data:
+            matches.append({
+                'match_id': str(match.get('id')),
+                'home_team': match.get('homeTeam', {}).get('name', 'Unknown'),
+                'away_team': match.get('awayTeam', {}).get('name', 'Unknown'),
+                'league': match.get('competition', {}).get('name', 'Unknown'),
+                'date': match.get('utcDate', '')[:10],
+                'status': match.get('status', 'UNKNOWN'),
+                'home_goals': match.get('score', {}).get('fullTime', {}).get('home'),
+                'away_goals': match.get('score', {}).get('fullTime', {}).get('away'),
+                'home_odds': None,
+                'draw_odds': None,
+                'away_odds': None
+            })
+        return matches
+    
+    def _parse_api_football_matches(self, matches_data):
+        """Parse matches from API-Football format"""
+        matches = []
+        for match in matches_data:
+            fixture = match.get('fixture', {})
+            teams = match.get('teams', {})
+            goals = match.get('goals', {})
+            league = match.get('league', {})
+            
+            matches.append({
+                'match_id': str(fixture.get('id')),
+                'home_team': teams.get('home', {}).get('name', 'Unknown'),
+                'away_team': teams.get('away', {}).get('name', 'Unknown'),
+                'league': league.get('name', 'Unknown'),
+                'date': fixture.get('date', '')[:10],
+                'status': fixture.get('status', {}).get('short', 'UNKNOWN'),
+                'home_goals': goals.get('home'),
+                'away_goals': goals.get('away'),
+                'home_odds': None,
+                'draw_odds': None,
+                'away_odds': None
+            })
+        return matches
+    
+    def _parse_odds(self, odds_data):
+        """Parse odds from API response"""
+        parsed = []
+        for bookmaker in odds_data:
+            for bet in bookmaker.get('bets', []):
+                if bet.get('name') == 'Match Winner':
+                    for value in bet.get('values', []):
+                        parsed.append({
+                            'bookmaker': bookmaker.get('name'),
+                            'outcome': value.get('outcome'),
+                            'odds': float(value.get('odd'))
+                        })
+        return parsed
     
     def init_database(self):
         """Initialize SQLite database for storing match data"""
