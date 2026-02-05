@@ -47,50 +47,143 @@ class BettingTelegramBot:
             "You've been unsubscribed from value bet alerts.",
             parse_mode='Markdown'
         )
-        
-        logger.info(f"User {user_id} unsubscribed from notifications")
     
-    async def set_notifications(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /notify command - configure notification settings"""
-        if not context.args:
-            await update.message.reply_text(
-                "⚙️ *Notification Settings*\n\n"
-                "Usage: /notify <interval_minutes> <min_value>%\n\n"
-                "Example: /notify 60 5\n"
-                "This checks for value bets every 60 minutes with minimum 5% value.\n\n"
-                "Current settings:\n"
-                f"• Check interval: {self.notification_interval // 60} hours\n"
-                f"• Minimum value: {self.min_value_threshold * 100}%",
-                parse_mode='Markdown'
-            )
-            return
+    async def help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /help command - show all available commands"""
+        help_text = """
+🎯 **AI Betting Bot - Help**
+
+📊 **Commands:**
+/start - Start the bot
+/valuebets - Get current value bets
+/analyze - Analyze a specific match
+/stats - View betting statistics
+/subscribe - Get notifications for new value bets
+/unsubscribe - Stop notifications
+/premium - View premium features
+/help - Show this help message
+
+💡 **Tips:**
+• Use inline buttons for quick actions
+• Subscribe to get instant alerts
+• Check stats regularly for updates
+
+📧 **Contact Admin**
+For support and manual activation:
+• Telegram: @admin
+• Email: kevohmutwiri35@gmail.com
+• WhatsApp: 0791674888
+• Username: @Klaus_debbugg
+
+⚠️ **Disclaimer:** Bet responsibly. This is an analysis tool only.
+        """
         
+        await update.message.reply_text(
+            help_text,
+            parse_mode='Markdown'
+        )
+    
+    async def stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /stats command - show betting statistics"""
         try:
-            interval = int(context.args[0])
-            min_value = float(context.args[1]) / 100
-            
-            self.notification_interval = interval * 60  # Convert to seconds
-            self.min_value_threshold = min_value
+            stats_message = """
+📊 **Betting Statistics**
+
+🤖 **AI Model Status:**
+• Status: Active
+• Accuracy: ~32.5%
+• Trained on historical data
+
+📈 **Value Detection:**
+• Min threshold: 5%
+• Check interval: Hourly
+• Active subscribers: {subscribers}
+
+💎 **Premium Features:**
+• Full match analysis
+• Advanced statistics
+• Priority notifications
+
+📧 **Contact Admin**
+For support: kevohmutwiri35@gmail.com
+        """.format(
+                subscribers=len(self.subscribed_users)
+            )
             
             await update.message.reply_text(
-                f"✅ *Settings Updated!*\n\n"
-                f"• Check interval: {interval} minutes\n"
-                f"• Minimum value: {min_value * 100}%",
+                stats_message,
                 parse_mode='Markdown'
             )
-        except ValueError:
+            
+        except Exception as e:
             await update.message.reply_text(
-                "❌ *Invalid format*\n\n"
-                "Use: /notify <interval_minutes> <min_value>%\n"
-                "Example: /notify 60 5",
-                parse_mode='Markdown'
+                "❌ Error fetching statistics. Please try again later."
             )
+            logger.error(f"Error in stats: {e}")
     
-    async def broadcast_value_bets(self, application: Application):
-        """Check for value bets and notify subscribed users"""
-        if not self.subscribed_users:
-            return
+    async def premium(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /premium command - show premium features"""
+        premium_message = """
+💎 **Premium Features**
+
+Upgrade to premium for:
+• Full match analysis with detailed predictions
+• Advanced statistics and trends
+• Priority notifications for value bets
+• Access to historical data
+• Custom betting strategies
+
+📧 **Contact Admin**
+For manual activation:
+• Telegram: @admin
+• Email: kevohmutwiri35@gmail.com
+• Username: @Klaus_debbugg
+
+Current AI accuracy is ~32.5%. Premium users get enhanced analysis tools.
+        """
         
+        keyboard = [
+            [InlineKeyboardButton("📧 Contact Admin", url="https://t.me/admin")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            premium_message,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+    
+    def format_value_bets_message(self, value_bets):
+        """Format value bets for display"""
+        message = "🎯 *VALUE BETS FOUND*\n\n"
+        
+        for i, bet in enumerate(value_bets[:10], 1):
+            message += f"📊 *Bet #{i}*\n"
+            message += f"🏆 {bet['home_team']} vs {bet['away_team']}\n"
+            message += f"💎 Recommendation: *{bet['recommended_outcome']}*\n"
+            message += f"📈 Odds: {bet['odds']:.2f}\n"
+            message += f"🎯 Value: +{bet['value_margin']:.1f}%\n"
+            message += f"🎲 Expected Value: {bet['expected_value']:.2f}\n"
+            
+            if 'stake' in bet:
+                message += f"💰 Suggested Stake: KES {bet['stake']:.2f}\n"
+            
+            if 'confidence' in bet:
+                message += f"📊 Confidence: {bet['confidence']}\n"
+            
+            message += "\n"
+        
+        message += "📧 **Contact Admin**\n"
+        message += "kevohmutwiri35@gmail.com | @Klaus_debbugg\n\n"
+        
+        message += "—\n"
+        message += "🤖 *AI Betting Bot* | Bet responsibly!\n"
+        
+        return message
+    
+    async def broadcast_value_bets(self, context: ContextTypes.DEFAULT_TYPE):
+        """Send value bet notifications to subscribed users"""
         try:
             # Get current matches
             matches_data = self.data_collector.get_sample_data()
@@ -98,20 +191,23 @@ class BettingTelegramBot:
             # Find value bets
             value_bets = self.value_detector.find_value_bets(matches_data)
             
-            # Filter by minimum threshold
-            filtered_bets = [bet for bet in value_bets 
-                           if bet.get('value_margin', 0) >= self.min_value_threshold]
+            # Filter by minimum value threshold
+            filtered_bets = [
+                bet for bet in value_bets 
+                if bet.get('value_margin', 0) >= (self.min_value_threshold * 100)
+            ]
             
             if not filtered_bets:
+                logger.info("No value bets meeting threshold found")
                 return
             
-            # Format notification message
+            # Format message
             message = self.format_notification_message(filtered_bets)
             
             # Send to all subscribed users
             for user_id in self.subscribed_users:
                 try:
-                    await application.bot.send_message(
+                    await context.bot.send_message(
                         chat_id=user_id,
                         text=message,
                         parse_mode='Markdown'
@@ -155,6 +251,13 @@ Welcome! I analyze football matches and find value bets using AI.
 /premium - Upgrade to premium
 /help - Show all commands
 
+📧 **Contact Admin**
+For support and manual activation:
+• Telegram: @admin
+• Email: kevohmutwiri35@gmail.com
+• WhatsApp: 0791674888
+• Username: @Klaus_debbugg
+
 ⚠️ **Disclaimer:** This is an analysis tool, not financial advice. Bet responsibly!
         """
         
@@ -174,7 +277,17 @@ Welcome! I analyze football matches and find value bets using AI.
     
     async def value_bets(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /valuebets command"""
-        await update.message.reply_text("🔍 Analyzing matches for value bets...")
+        # Check if this is a callback query
+        if update.callback_query:
+            await update.callback_query.answer()
+            # For callback, we need to use edit_message_text
+            await update.callback_query.edit_message_text("🔍 Analyzing matches for value bets...")
+            chat_id = update.callback_query.message.chat_id
+            user_id = update.callback_query.from_user.id
+        else:
+            await update.message.reply_text("🔍 Analyzing matches for value bets...")
+            chat_id = update.message.chat_id
+            user_id = update.effective_user.id
         
         try:
             # Get current matches
@@ -184,197 +297,120 @@ Welcome! I analyze football matches and find value bets using AI.
             value_bets = self.value_detector.find_value_bets(matches_data)
             
             if not value_bets:
-                await update.message.reply_text(
-                    "❌ No value bets found today.\n\n"
-                    "Try again later for new matches!"
-                )
+                if update.callback_query:
+                    await update.callback_query.edit_message_text(
+                        "❌ No value bets found today.\n\n"
+                        "Try again later for new matches!\n\n"
+                        "📧 Contact: kevohmutwiri35@gmail.com"
+                    )
+                else:
+                    await update.message.reply_text(
+                        "❌ No value bets found today.\n\n"
+                        "Try again later for new matches!"
+                    )
                 return
             
             # Format and send results
             message = self.format_value_bets_message(value_bets)
             
             # Check if user is premium for full details
-            user_id = update.effective_user.id
             if user_id not in self.premium_users:
                 message += "\n\n💎 *Premium users get full analysis and more bets!*\n"
                 message += "Use /premium to upgrade"
             
-            await update.message.reply_text(
-                message,
-                parse_mode='Markdown'
-            )
+            if update.callback_query:
+                await update.callback_query.edit_message_text(
+                    message,
+                    parse_mode='Markdown'
+                )
+            else:
+                await update.message.reply_text(
+                    message,
+                    parse_mode='Markdown'
+                )
             
         except Exception as e:
-            await update.message.reply_text(
-                f"❌ Error analyzing matches: {str(e)}\n"
-                "Please try again later."
-            )
+            error_message = f"❌ Error analyzing matches: {str(e)}"
+            if update.callback_query:
+                await update.callback_query.edit_message_text(error_message)
+            else:
+                await update.message.reply_text(error_message)
+            
+            logger.error(f"Error in value_bets: {e}")
     
-    async def analyze_match(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /analyze command"""
-        if not context.args:
-            await update.message.reply_text(
-                "Usage: /analyze <home_team> vs <away_team>\n"
-                "Example: /analyze Manchester United vs Arsenal"
-            )
+    async def analyze(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /analyze command - analyze a specific match"""
+        if update.callback_query:
+            await update.callback_query.answer()
+        
+        # Get match details from command arguments
+        args = context.args
+        
+        if not args:
+            help_text = """
+📝 **Analyze a Match**
+
+Usage: /analyze <home_team> vs <away_team>
+
+Example:
+/analyze Arsenal vs Chelsea
+/analyze Man Utd vs Liverpool
+
+📧 Contact: kevohmutwiri35@gmail.com
+            """
+            await update.message.reply_text(help_text, parse_mode='Markdown')
             return
         
-        # Parse teams from command
-        command_text = ' '.join(context.args)
-        if ' vs ' in command_text:
-            home_team, away_team = command_text.split(' vs ', 1)
-            
-            await update.message.reply_text(
-                f"🔍 Analyzing {home_team.strip()} vs {away_team.strip()}..."
-            )
-            
-            # Create sample match for analysis
-            match_data = pd.DataFrame([{
-                'match_id': f'analysis_{datetime.now().strftime("%Y%m%d_%H%M%S")}',
-                'home_team': home_team.strip(),
-                'away_team': away_team.strip(),
-                'league': 'Unknown',
-                'date': datetime.now().strftime('%Y-%m-%d'),
-                'home_odds': 2.10,
-                'draw_odds': 3.40,
-                'away_odds': 3.20
-            }])
-            
-            # Analyze
-            value_bets = self.value_detector.find_value_bets(match_data)
-            
-            if value_bets:
-                bet = value_bets[0]
-                analysis_message = f"""
-📊 **Match Analysis**
-{bet['home_team']} vs {bet['away_team']}
-
-🎯 **Recommendation:** {bet['recommended_outcome']}
-💰 **Odds:** {bet['odds']}
-📈 **AI Probability:** {bet['ai_probability']}%
-📉 **Bookmaker Probability:** {bet['bookmaker_probability']}%
-💎 **Value Margin:** +{bet['value_margin']}%
-🎲 **Expected Value:** {bet['expected_value']}
-🔒 **Confidence:** {bet['confidence']}
-
-⚠️ *This is AI analysis, not guaranteed prediction*
-                """
-            else:
-                analysis_message = f"""
-📊 **Match Analysis**
-{home_team.strip()} vs {away_team.strip()}
-
-❌ **No value detected** in current odds
-💰 *Current odds don't offer value according to AI analysis*
-
-💎 *Premium users get detailed breakdown of why*
-                """
-            
-            await update.message.reply_text(
-                analysis_message,
-                parse_mode='Markdown'
-            )
+        # Parse the match from arguments
+        match_text = ' '.join(args)
+        
+        # Try to extract teams (handles "Team A vs Team B" or "Team A - Team B")
+        if ' vs ' in match_text:
+            parts = match_text.split(' vs ')
+        elif ' - ' in match_text:
+            parts = match_text.split(' - ')
         else:
+            parts = match_text.split(' vs ')
+        
+        if len(parts) < 2:
             await update.message.reply_text(
                 "❌ Invalid format. Use: /analyze <home_team> vs <away_team>"
             )
-    
-    async def stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /stats command"""
-        stats_message = """
-📊 **AI Betting Statistics**
-
-🎯 **Model Performance:**
-• Accuracy: 58-62% (typical for sports betting)
-• Value Bet Success Rate: ~55%
-• Average ROI: +5-8% on value bets
-
-💰 **Betting Principles:**
-• Only bet on value (positive EV)
-• Use proper bankroll management (1-2% per bet)
-• Long-term profitability over short-term wins
-
-📈 **Recent Performance:**
-• Last 7 days: 12 value bets found
-• Success rate: 7 wins, 5 losses
-• ROI: +6.2%
-
-💎 *Premium users get detailed performance tracking*
-        """
+            return
+        
+        home_team = parts[0].strip()
+        away_team = ' vs '.join(parts[1:]).strip()
         
         await update.message.reply_text(
-            stats_message,
-            parse_mode='Markdown'
+            f"🔍 Analyzing: {home_team} vs {away_team}..."
         )
-    
-    async def premium(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /premium command"""
-        premium_message = """
-💎 **Premium Features**
+        
+        # For demo, show sample analysis
+        analysis_message = f"""
+📊 **Match Analysis**
 
-🚀 **What you get:**
-• Unlimited value bet analysis
-• Detailed match breakdowns
-• Historical performance tracking
-• Custom alerts for specific teams/leagues
-• Priority support
-• API access for developers
+🏆 *{home_team} vs {away_team}*
 
-💰 **Pricing:**
-• 1 Week: $9.99
-• 1 Month: $29.99
-• 3 Months: $79.99
+🤖 **AI Prediction:**
+• Home Win: 45%
+• Draw: 30%
+• Away Win: 25%
 
-🔗 *Payment links coming soon!*
-📧 *Contact @admin for manual activation*
+📈 **Key Factors:**
+• Recent form: Both teams showing mixed results
+• Home advantage: Slight edge to home team
+• H2H: Historically competitive
 
-🎁 *Free trial available for first 100 users!*
+⚠️ **Note:** This is a demo analysis. 
+For full AI-powered predictions, subscribe to value bets!
+
+📧 Contact: kevohmutwiri35@gmail.com
         """
         
-        keyboard = [
-            [InlineKeyboardButton("💳 Start Free Trial", callback_data="trial")],
-            [InlineKeyboardButton("📧 Contact Admin", callback_data="contact")],
-            [InlineKeyboardButton("🔙 Back to Menu", callback_data="back")]
-        ]
-        
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await update.message.reply_text(
-            premium_message,
-            reply_markup=reply_markup,
-            parse_mode='Markdown'
-        )
-    
-    async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /help command"""
-        help_message = """
-🤖 **AI Betting Bot Help**
-
-📋 **Commands:**
-/start - Start the bot
-/valuebets - Get today's value bets
-/analyze <team1> vs <team2> - Analyze specific match
-/stats - Show betting statistics
-/premium - Upgrade to premium features
-/help - Show this help message
-
-💡 **Tips:**
-• Check value bets daily for best opportunities
-• Use /analyze for matches you're interested in
-• Follow bankroll management principles
-• Bet responsibly!
-
-❓ **Questions?**
-Use /premium to contact admin for support
-        """
-        
-        await update.message.reply_text(
-            help_message,
-            parse_mode='Markdown'
-        )
+        await update.message.reply_text(analysis_message, parse_mode='Markdown')
     
     async def button_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle inline button callbacks"""
+        """Handle inline button clicks"""
         query = update.callback_query
         await query.answer()
         
@@ -384,73 +420,61 @@ Use /premium to contact admin for support
             await self.stats(update, context)
         elif query.data == "premium":
             await self.premium(update, context)
-        elif query.data == "trial":
-            await query.edit_message_text(
-                "🎁 **Free Trial Activated!**\n\n"
-                "You now have premium access for 7 days!\n"
-                "Enjoy unlimited value bets and detailed analysis!"
-            )
-            # Add user to premium (in production, use database)
-            self.premium_users.add(update.effective_user.id)
-        elif query.data == "contact":
-            await query.edit_message_text(
-                "📧 **Contact Admin**\n\n"
-                "For support and manual activation:\n"
-                "• Telegram: @admin\n"
-                "• Email: support@aibetting.bot\n\n"
-                "Mention your username: @" + update.effective_user.username
-            )
-        elif query.data == "back":
-            await self.start(update, context)
     
-    def format_value_bets_message(self, value_bets):
-        """Format value bets for Telegram message"""
-        if not value_bets:
-            return "❌ No value bets found today."
+    async def error_handler(self, update: object, context: ContextTypes.DEFAULT_TYPE):
+        """Handle errors"""
+        logger.error(f"Exception while handling update: {context.error}")
         
-        message = "🎯 **Today's Value Bets**\n\n"
-        
-        for i, bet in enumerate(value_bets[:3], 1):  # Limit to 3 for free users
-            message += f"📊 *Bet #{i}*\n"
-            message += f"🏆 {bet['home_team']} vs {bet['away_team']}\n"
-            message += f"💎 {bet['recommended_outcome']} @ {bet['odds']}\n"
-            message += f"📈 Value: +{bet['value_margin']}%\n"
-            message += f"🎲 EV: {bet['expected_value']}\n"
-            message += f"🔒 Confidence: {bet['confidence']}\n\n"
-        
-        return message
+        if isinstance(update, Update) and update.effective_message:
+            try:
+                await update.effective_message.reply_text(
+                    "❌ An error occurred. Please try again later.\n\n"
+                    "📧 Contact: kevohmutwiri35@gmail.com"
+                )
+            except:
+                pass
     
     def run(self):
-        """Start the bot with notification support"""
-        application = Application.builder().token(self.token).build()
-        
-        # Add handlers
-        application.add_handler(CommandHandler("start", self.start))
-        application.add_handler(CommandHandler("valuebets", self.value_bets))
-        application.add_handler(CommandHandler("analyze", self.analyze_match))
-        application.add_handler(CommandHandler("stats", self.stats))
-        application.add_handler(CommandHandler("premium", self.premium))
-        application.add_handler(CommandHandler("help", self.help_command))
-        application.add_handler(CommandHandler("subscribe", self.subscribe))
-        application.add_handler(CommandHandler("unsubscribe", self.unsubscribe))
-        application.add_handler(CommandHandler("notify", self.set_notifications))
-        application.add_handler(CallbackQueryHandler(self.button_callback))
-        
-        # Add job for periodic notifications
-        application.job_queue.run_repeating(
-            self._notification_callback,
-            interval=self.notification_interval,
-            first=60  # First check after 1 minute
-        )
-        
-        print(f"Bot @{self.bot_username} is running...")
-        print(f"Notifications enabled for subscribed users (check every {self.notification_interval // 60} minutes)")
-        application.run_polling()
-    
-    async def _notification_callback(self, context: ContextTypes.DEFAULT_TYPE):
-        """Callback for periodic value bet checks"""
-        await self.broadcast_value_bets(context.application)
+        """Run the bot"""
+        try:
+            application = Application.builder().token(self.token).build()
+            
+            # Add handlers
+            application.add_handler(CommandHandler("start", self.start))
+            application.add_handler(CommandHandler("valuebets", self.value_bets))
+            application.add_handler(CommandHandler("analyze", self.analyze))
+            application.add_handler(CommandHandler("stats", self.stats))
+            application.add_handler(CommandHandler("premium", self.premium))
+            application.add_handler(CommandHandler("subscribe", self.subscribe))
+            application.add_handler(CommandHandler("unsubscribe", self.unsubscribe))
+            application.add_handler(CommandHandler("help", self.help))
+            application.add_handler(CallbackQueryHandler(self.button_callback))
+            
+            # Add error handler
+            application.add_error_handler(self.error_handler)
+            
+            # Setup notification job
+            try:
+                application.job_queue.run_repeating(
+                    self.broadcast_value_bets,
+                    interval=self.notification_interval,
+                    first=60  # Wait 60 seconds before first check
+                )
+            except Exception as e:
+                logger.warning(f"Could not setup job queue: {e}")
+            
+            # Start polling
+            print("🤖 Bot is running...")
+            application.run_polling(drop_pending_updates=True)
+            
+        except Exception as e:
+            logger.error(f"Error starting bot: {e}")
+
 
 if __name__ == "__main__":
-    bot = BettingTelegramBot(TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_USERNAME)
-    bot.run()
+    # Initialize and run the bot
+    if TELEGRAM_BOT_TOKEN and TELEGRAM_BOT_USERNAME:
+        bot = BettingTelegramBot(TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_USERNAME)
+        bot.run()
+    else:
+        print("Please configure TELEGRAM_BOT_TOKEN and TELEGRAM_BOT_USERNAME in config.py")
