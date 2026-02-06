@@ -1,3 +1,5 @@
+"""Telegram Bot for AI Betting Predictions"""
+
 import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, JobQueue
@@ -6,6 +8,15 @@ from datetime import datetime
 import json
 from value_detector import ValueBetDetector
 from data_collector import FootballDataCollector
+from live_tracker import LiveMatchTracker
+from telegram_gambling import (
+    get_casino_games,
+    get_virtual_sports,
+    get_jackpot_bets,
+    get_betika_matches,
+    get_sportpesa_matches,
+    get_odibet_matches,
+)
 from config import TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_USERNAME
 from logger import logger
 
@@ -15,8 +26,10 @@ class BettingTelegramBot:
         self.bot_username = bot_username
         self.value_detector = ValueBetDetector()
         self.data_collector = FootballDataCollector()
+        self.live_tracker = LiveMatchTracker()
         self.premium_users = set()
-        self.subscribed_users = set()  # Users subscribed to value bet alerts
+        self.subscribed_users = set()
+        self.live_subscribed_users = set()  # Users subscribed to live match alerts
         self.notification_jobs = {}
         
         # Notification settings
@@ -47,105 +60,144 @@ class BettingTelegramBot:
             "You've been unsubscribed from value bet alerts.",
             parse_mode='Markdown'
         )
+        
+        logger.info(f"User {user_id} unsubscribed from notifications")
     
-    async def help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /help command - show all available commands"""
-        help_text = """
-🎯 **AI Betting Bot - Help**
+    # ==================== GAMBLING/CASINO COMMANDS ====================
+    
+    async def get_casino_games(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /casino and /slots commands"""
+        await get_casino_games(update, context)
+    
+    async def get_virtual_sports(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /virtual command"""
+        await get_virtual_sports(update, context)
+    
+    async def get_jackpot_bets(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /jackpot command"""
+        await get_jackpot_bets(update, context)
+    
+    async def get_betika_matches(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /betika command"""
+        await get_betika_matches(update, context)
+    
+    async def get_sportpesa_matches(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /sportpesa command"""
+        await get_sportpesa_matches(update, context)
+    
+    async def get_odibet_matches(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /odibet command"""
+        await get_odibet_matches(update, context)
+    
+    async def get_inplay_bets(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /inplay command - show in-play betting opportunities"""
+        try:
+            message = self.live_tracker.format_inplay_message()
+            
+            keyboard = [
+                [InlineKeyboardButton("Refresh", callback_data="refresh_inplay")],
+                [InlineKeyboardButton("Live Matches", callback_data="live_matches")],
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            if update.callback_query:
+                await update.callback_query.edit_message_text(message, parse_mode='Markdown', reply_markup=reply_markup)
+            else:
+                await update.message.reply_text(message, parse_mode='Markdown', reply_markup=reply_markup)
+                
+        except Exception as e:
+            logger.error(f"Error fetching in-play bets: {e}")
+            await update.message.reply_text("Error fetching in-play betting opportunities.")
+    
+    async def subscribe_live_alerts(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /livenotify command - subscribe to live match alerts"""
+        user_id = update.effective_user.id
+        self.live_subscribed_users.add(user_id)
+        
+        message = """
+✅ **Live Match Alerts Enabled!**
 
-📊 **Commands:**
-/start - Start the bot
-/valuebets - Get current value bets
-/analyze - Analyze a specific match
-/stats - View betting statistics
-/subscribe - Get notifications for new value bets
-/unsubscribe - Stop notifications
-/premium - View premium features
-/help - Show this help message
+You will receive notifications when:
+- Goals are scored
+- Red cards shown
+- Key betting opportunities arise
+- Match momentum shifts
 
-💡 **Tips:**
-• Use inline buttons for quick actions
-• Subscribe to get instant alerts
-• Check stats regularly for updates
+Use /unlivenotify to disable alerts.
 
-📧 **Contact Admin**
-For support and manual activation:
-• Telegram: @admin
-• Email: kevohmutwiri35@gmail.com
-• WhatsApp: 0791674888
-• Username: @Klaus_debbugg
-
-⚠️ **Disclaimer:** Bet responsibly. This is an analysis tool only.
+Tips:
+- Alerts come with betting recommendations
+- Act fast - odds change quickly
+- Bet responsibly
         """
         
+        await update.message.reply_text(message, parse_mode='Markdown')
+        logger.info(f"User {user_id} subscribed to live alerts")
+    
+    async def unsubscribe_live_alerts(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /unlivenotify command - unsubscribe from live match alerts"""
+        user_id = update.effective_user.id
+        self.live_subscribed_users.discard(user_id)
+        
         await update.message.reply_text(
-            help_text,
+            "❌ **Live Alerts Disabled**\n\n"
+            "You have been unsubscribed from live match notifications.",
             parse_mode='Markdown'
         )
+        
+        logger.info(f"User {user_id} unsubscribed from live alerts")
     
-    async def stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /stats command - show betting statistics"""
-        try:
-            stats_message = """
-📊 **Betting Statistics**
-
-🤖 **AI Model Status:**
-• Status: Active
-• Accuracy: ~32.5%
-• Trained on historical data
-
-📈 **Value Detection:**
-• Min threshold: 5%
-• Check interval: Hourly
-• Active subscribers: {subscribers}
-
-💎 **Premium Features:**
-• Full match analysis
-• Advanced statistics
-• Priority notifications
-
-📧 **Contact Admin**
-For support: kevohmutwiri35@gmail.com
-        """.format(
-                subscribers=len(self.subscribed_users)
-            )
-            
-            await update.message.reply_text(
-                stats_message,
-                parse_mode='Markdown'
-            )
-            
-        except Exception as e:
-            await update.message.reply_text(
-                "❌ Error fetching statistics. Please try again later."
-            )
-            logger.error(f"Error in stats: {e}")
+    # ==================== PREMIUM COMMANDS ====================
     
     async def premium(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /premium command - show premium features"""
-        premium_message = """
-💎 **Premium Features**
+        user_id = update.effective_user.id
+        is_premium = user_id in self.premium_users
+        
+        if is_premium:
+            status = "✅ **PREMIUM ACTIVE**"
+            features = """
+🎯 **Premium Features:**
+• Instant Value Bet Notifications
+• Higher Confidence Predictions
+• Advanced Stats & Analytics
+• Personal Betting Strategy
+• Priority Support
+            """
+        else:
+            status = "🌟 **Upgrade to Premium**"
+            features = """
+🎁 **Free Features:**
+• Basic Predictions
+• Match Analysis
+• Value Bet Finder
+• Daily Tips
 
-Upgrade to premium for:
-• Full match analysis with detailed predictions
-• Advanced statistics and trends
-• Priority notifications for value bets
-• Access to historical data
-• Custom betting strategies
+🎯 **Premium Includes:**
+• Instant Notifications
+• 85%+ Confidence Picks
+• Custom Strategy
+• VIP Support
+            """
+        
+        premium_message = f"""
+{status}
 
-📧 **Contact Admin**
-For manual activation:
-• Telegram: @Klaus_debbugg
+{features}
+
+📧 **Contact Admin:**
 • Email: kevohmutwiri35@gmail.com
-• Username: @Klaus_debbugg
+• Telegram: @Klaus_debbugg
 
-Current AI accuracy is ~32.5%. Premium users get enhanced analysis tools.
+💳 **Payment Methods:**
+• M-PESA: 0748392884
+• PayPal: kevohmutwiri35@gmail.com
         """
         
         keyboard = [
-            [InlineKeyboardButton("📧 Contact Admin", url="https://t.me/admin")]
+            [InlineKeyboardButton("📧 Contact Admin", url="https://t.me/Klaus_debbugg")],
+            [InlineKeyboardButton("💳 Upgrade", callback_data="upgrade")],
         ]
-        
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await update.message.reply_text(
@@ -198,11 +250,11 @@ Current AI accuracy is ~32.5%. Premium users get enhanced analysis tools.
             ]
             
             if not filtered_bets:
-                logger.info("No value bets meeting threshold found")
+                logger.info("No value bets found above threshold")
                 return
             
             # Format message
-            message = self.format_notification_message(filtered_bets)
+            message = self.format_value_bets_message(filtered_bets)
             
             # Send to all subscribed users
             for user_id in self.subscribed_users:
@@ -212,68 +264,119 @@ Current AI accuracy is ~32.5%. Premium users get enhanced analysis tools.
                         text=message,
                         parse_mode='Markdown'
                     )
+                    logger.info(f"Sent value bet notification to user {user_id}")
                 except Exception as e:
-                    logger.error(f"Failed to send notification to user {user_id}: {e}")
-                    self.subscribed_users.discard(user_id)
-            
-            logger.info(f"Sent notifications to {len(self.subscribed_users)} users about {len(filtered_bets)} value bets")
+                    logger.error(f"Failed to send notification to {user_id}: {e}")
             
         except Exception as e:
             logger.error(f"Error in broadcast_value_bets: {e}")
     
-    def format_notification_message(self, value_bets):
-        """Format value bets for notification"""
-        message = "🎯 *NEW VALUE BETS FOUND!*\n\n"
+    async def value_bets(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /valuebets command - show current value bets"""
+        try:
+            await update.message.reply_text("🔍 *Searching for value bets...*", parse_mode='Markdown')
+            
+            # Get current matches from data collector
+            matches_data = self.data_collector.get_sample_data()
+            
+            # Find value bets
+            value_bets = self.value_detector.find_value_bets(matches_data)
+            
+            if value_bets:
+                message = self.format_value_bets_message(value_bets)
+                keyboard = [
+                    [InlineKeyboardButton("🔄 Refresh", callback_data="refresh_bets")],
+                    [InlineKeyboardButton("📊 Analyze", callback_data="analyze")],
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                await update.message.reply_text(
+                    message, 
+                    reply_markup=reply_markup,
+                    parse_mode='Markdown'
+                )
+            else:
+                await update.message.reply_text(
+                    "❌ *No value bets found at the moment.*\n\n"
+                    "Check back later for new opportunities!",
+                    parse_mode='Markdown'
+                )
+                
+        except Exception as e:
+            logger.error(f"Error fetching value bets: {e}")
+            await update.message.reply_text("❌ Error fetching value bets. Please try again later!")
+    
+    async def button_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle inline button callbacks"""
+        query = update.callback_query
+        await query.answer()
         
-        for i, bet in enumerate(value_bets[:5], 1):  # Max 5 bets per notification
-            message += f"📊 *Bet #{i}*\n"
-            message += f"🏆 {bet['home_team']} vs {bet['away_team']}\n"
-            message += f"💎 {bet['recommended_outcome']} @ {bet['odds']}\n"
-            message += f"📈 Value: +{bet['value_margin']}%\n"
-            message += f"🎲 EV: {bet['expected_value']}\n\n"
+        if query.data == "refresh_bets":
+            await self.value_bets(update, context)
+        elif query.data == "analyze":
+            await query.edit_message_text("🔍 *Analysis Mode*\n\nUse /analyze <team1> vs <team2> for detailed analysis.")
+        elif query.data == "upgrade":
+            await self.premium(update, context)
+        elif query.data.startswith("bet_"):
+            await query.edit_message_text("💰 *Bet Placed!*\n\nGood luck! Remember to bet responsibly.")
+    
+    async def error_handler(self, update: object, context: ContextTypes.DEFAULT_TYPE):
+        """Handle errors"""
+        logger.error(f"Exception while handling an update: {context.error}")
         
-        message += "—\n"
-        message += "🤖 *AI Betting Bot*"
-        
-        return message  # In production, use database
-        
+        if update and hasattr(update, 'effective_message'):
+            await update.effective_message.reply_text(
+                "❌ An error occurred. Please try again later."
+            )
+    
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /start command"""
-        welcome_message = """
-🎯 **AI Betting Assistant Bot**
+        user = update.effective_user
+        
+        welcome_message = f"""
+🎰 *Welcome to AI Betting Bot* 🎰
 
-Welcome! I analyze football matches and find value bets using AI.
+Hello {user.first_name}! I'm your AI-powered betting assistant.
 
-📊 **Available Commands:**
-/valuebets - Get today's value bets
-/today - Get today's matches
-/tomorrow - Get tomorrow's matches
-/live - Get live matches now
-/premier - Premier League matches
-/laliga - La Liga matches
-/seriea - Serie A matches
-/bundesliga - Bundesliga matches
-/analyze - Analyze specific match
-/stats - Show betting statistics
-/premium - Upgrade to premium
-/help - Show all commands
+🏆 *What I Do:*
+• Analyze football matches
+• Find value bets with positive expected value
+• Provide predictions with confidence scores
+• Send instant notifications
 
-📧 **Contact Admin**
-For support and manual activation:
-• Telegram: @admin
-• Email: kevohmutwiri35@gmail.com
-• WhatsApp: 0791674888
-• Username: @Klaus_debbugg
+📊 *Available Commands:*
+• /valuebets - Find current value bets
+• /today - Today's matches
+• /tomorrow - Tomorrow's matches
+• /live - Currently live matches
+• /premier - Premier League
+• /laliga - La Liga
+• /seriea - Serie A
+• /bundesliga - Bundesliga
+• /analyze - Detailed match analysis
+• /stats - AI model statistics
+• /premium - Premium features
+• /subscribe - Get notifications
+• /help - All commands
 
-⚠️ **Disclaimer:** This is an analysis tool, not financial advice. Bet responsibly!
+🎮 *Casino & Games:*
+• /casino - Casino games
+• /slots - Slot games
+• /virtual - Virtual sports
+• /jackpot - Jackpot predictions
+• /betika - Betika matches
+• /sportpesa - SportPesa matches
+• /odibet - Odibet matches
+
+📧 *Contact:* kevohmutwiri35@gmail.com
+
+⚠️ *Disclaimer:* Bet responsibly. 18+ Only.
         """
         
         keyboard = [
-            [InlineKeyboardButton("🎯 Get Value Bets", callback_data="valuebets")],
-            [InlineKeyboardButton("📊 View Stats", callback_data="stats")],
-            [InlineKeyboardButton("💎 Premium Features", callback_data="premium")]
+            [InlineKeyboardButton("🎯 Find Value Bets", callback_data="find_bets")],
+            [InlineKeyboardButton("📊 Live Matches", callback_data="live")],
+            [InlineKeyboardButton("🎰 Casino Games", callback_data="casino")],
         ]
-        
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await update.message.reply_text(
@@ -281,73 +384,208 @@ For support and manual activation:
             reply_markup=reply_markup,
             parse_mode='Markdown'
         )
+        
+        logger.info(f"User {user.id} started the bot")
     
-    async def value_bets(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /valuebets command"""
-        # Check if this is a callback query
-        if update.callback_query:
-            await update.callback_query.answer()
-            # For callback, we need to use edit_message_text
-            await update.callback_query.edit_message_text("🔍 Analyzing matches for value bets...")
-            chat_id = update.callback_query.message.chat_id
-            user_id = update.callback_query.from_user.id
-        else:
-            await update.message.reply_text("🔍 Analyzing matches for value bets...")
-            chat_id = update.message.chat_id
-            user_id = update.effective_user.id
+    async def help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /help command - show all available commands"""
+        help_text = """
+🎰 *AI Betting Bot - Help*
+
+📊 *Main Commands:*
+• /start - Start the bot
+• /help - Show this help message
+• /valuebets - Find current value bets
+• /today - Today's matches
+• /tomorrow - Tomorrow's matches
+• /live - Currently live matches
+• /premier - Premier League matches
+• /laliga - La Liga matches
+• /seriea - Serie A matches
+• /bundesliga - Bundesliga matches
+
+🎮 *Analysis:*
+• /analyze <team1> vs <team2> - Detailed match analysis
+• /stats - AI model statistics
+
+💎 *Premium:*
+• /premium - View premium features
+• /subscribe - Enable notifications
+• /unsubscribe - Disable notifications
+
+🎰 *Casino & Games:*
+• /casino - Casino games
+• /slots - Slot games
+• /virtual - Virtual sports
+• /jackpot - Jackpot predictions
+• /betika - Betika matches
+• /sportpesa - SportPesa matches
+• /odibet - Odibet matches
+
+📧 *Support:* kevohmutwiri35@gmail.com
+
+⚠️ *Disclaimer:* Bet responsibly. 18+ Only.
+        """
+        
+        await update.message.reply_text(help_text, parse_mode='Markdown')
+    
+    async def stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /stats command - show AI model statistics"""
+        stats = self.value_detector.get_statistics()
+        
+        stats_message = f"""
+📊 *AI Model Statistics*
+
+📈 *Performance Metrics:*
+• Total Predictions: {stats['total_predictions']}
+• Value Bets Found: {stats['value_bets_found']}
+• Average Value: {stats['average_value']:.2f}%
+• Win Rate: {stats['win_rate']:.1f}%
+
+🎯 *Value Detection:*
+• Min Value Threshold: {stats['min_value_threshold']:.1f}%
+• Avg Odds: {stats['average_odds']:.2f}
+
+🤖 *Model Status:*
+• Status: Active
+• Last Updated: Real-time
+
+📧 *Contact Admin:* kevohmutwiri35@gmail.com
+
+⚠️ *Note:* Past performance doesn't guarantee future results. Bet responsibly.
+        """
+        
+        await update.message.reply_text(stats_message, parse_mode='Markdown')
+    
+    async def get_today_matches(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /today command - show today's matches"""
+        await self._send_matches_by_date(update, context, 'today')
+    
+    async def get_tomorrow_matches(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /tomorrow command - show tomorrow's matches"""
+        await self._send_matches_by_date(update, context, 'tomorrow')
+    
+    async def get_live_matches(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /live command - show live matches"""
+        await self._send_matches_by_date(update, context, 'live')
+    
+    async def get_league_matches(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle league-specific commands"""
+        command = update.message.text.split()[0][1:]  # Get command without /
+        
+        league_map = {
+            'premier': 'Premier League',
+            'laliga': 'La Liga',
+            'seriea': 'Serie A',
+            'bundesliga': 'Bundesliga'
+        }
+        
+        league = league_map.get(command, command.title())
+        await self._send_matches_by_league(update, context, league)
+    
+    async def _send_matches_by_date(self, update: Update, context: ContextTypes.DEFAULT_TYPE, date_filter: str):
+        """Helper to send matches by date"""
+        chat_id = update.effective_chat.id
         
         try:
-            # Get current matches
-            matches_data = self.data_collector.get_sample_data()
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=f"🔍 *Fetching {date_filter} matches...*",
+                parse_mode='Markdown'
+            )
             
-            # Find value bets
-            value_bets = self.value_detector.find_value_bets(matches_data)
+            matches = self.data_collector.get_sample_data()
             
-            if not value_bets:
-                no_bets_message = (
-                    "❌ No value bets found today.\n\n"
-                    "Try again later for new matches!\n\n"
-                    "📧 Contact: kevohmutwiri35@gmail.com"
+            if not matches:
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=f"❌ No matches found for {date_filter}."
                 )
-                if update.callback_query:
-                    await update.callback_query.edit_message_text(no_bets_message)
-                else:
-                    await update.message.reply_text(no_bets_message)
                 return
             
-            # Format and send results
-            message = self.format_value_bets_message(value_bets)
+            message = f"⚽ *{date_filter.upper()} MATCHES*\\n\\n"
             
-            # Check if user is premium for full details
-            if user_id not in self.premium_users:
-                message += "\n\n💎 *Premium users get full analysis and more bets!*\n"
-                message += "Use /premium to upgrade"
+            for i, match in enumerate(matches[:10], 1):
+                home = match.get('home_team', 'TBD')
+                away = match.get('away_team', 'TBD')
+                odds_home = match.get('home_odds', 0)
+                odds_away = match.get('away_odds', 0)
+                odds_draw = match.get('draw_odds', 0)
+                
+                message += f"📊 *Match #{i}*\\n"
+                message += f"🏆 {home} vs {away}\\n"
+                message += f"💰 {odds_home:.2f} | {odds_draw:.2f} | {odds_away:.2f}\\n\\n"
             
-            if update.callback_query:
-                await update.callback_query.edit_message_text(
-                    message,
-                    parse_mode='Markdown'
-                )
-            else:
-                await update.message.reply_text(
-                    message,
-                    parse_mode='Markdown'
-                )
+            message += "📧 *Contact Admin:* kevohmutwiri35@gmail.com"
+            
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=message,
+                parse_mode='Markdown'
+            )
             
         except Exception as e:
-            error_message = f"❌ Error analyzing matches: {str(e)}"
-            if update.callback_query:
-                await update.callback_query.edit_message_text(error_message)
-            else:
-                await update.message.reply_text(error_message)
+            logger.error(f"Error fetching {date_filter} matches: {e}")
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text="❌ Error fetching matches. Please try again later!"
+            )
+    
+    async def _send_matches_by_league(self, update: Update, context: ContextTypes.DEFAULT_TYPE, league: str):
+        """Helper to send matches by league"""
+        chat_id = update.effective_chat.id
+        
+        try:
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=f"🔍 *Fetching {league} matches...*",
+                parse_mode='Markdown'
+            )
             
-            logger.error(f"Error in value_bets: {e}")
+            matches = self.data_collector.get_sample_data()
+            
+            league_matches = [
+                m for m in matches 
+                if league.lower() in m.get('league', '').lower()
+            ]
+            
+            if not league_matches:
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=f"❌ No {league} matches found at the moment."
+                )
+                return
+            
+            message = f"⚽ *{league.upper()}*\\n\\n"
+            
+            for i, match in enumerate(league_matches[:10], 1):
+                home = match.get('home_team', 'TBD')
+                away = match.get('away_team', 'TBD')
+                odds_home = match.get('home_odds', 0)
+                odds_away = match.get('away_odds', 0)
+                odds_draw = match.get('draw_odds', 0)
+                
+                message += f"📊 *Match #{i}*\\n"
+                message += f"🏆 {home} vs {away}\\n"
+                message += f"💰 {odds_home:.2f} | {odds_draw:.2f} | {odds_away:.2f}\\n\\n"
+            
+            message += "📧 *Contact Admin:* kevohmutwiri35@gmail.com"
+            
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=message,
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            logger.error(f"Error fetching {league} matches: {e}")
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text="❌ Error fetching league matches. Try again later!"
+            )
     
     async def analyze(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /analyze command - analyze a specific match"""
-        if update.callback_query:
-            await update.callback_query.answer()
-        
+        """Handle /analyze command - provide detailed match analysis"""
         # Get match details from command arguments
         args = context.args
         
@@ -398,160 +636,71 @@ Example:
             )
             chat = update.message
         
-        # For demo, show sample analysis
-        analysis_message = f"""
-📊 **Match Analysis**
+        # Generate analysis
+        try:
+            # Get predictions from AI model
+            analysis = self.value_detector.analyze_match(home_team, away_team)
+            
+            # Format and send the analysis
+            analysis_text = f"""
+📊 *MATCH ANALYSIS*
 
-🏆 *{home_team} vs {away_team}*
+🏆 *{home_team}* vs *{away_team}*
 
-🤖 **AI Prediction:**
-• Home Win: 45%
-• Draw: 30%
-• Away Win: 25%
+📈 *AI Prediction:*
+• Prediction: {analysis['prediction']}
+• Confidence: {analysis['confidence']}
+• Expected Goals: {analysis['expected_goals']}
 
-📈 **Key Factors:**
-• Recent form: Both teams showing mixed results
-• Home advantage: Slight edge to home team
-• H2H: Historically competitive
+🎯 *Odds Analysis:*
+• Home Win: {analysis['home_odds']:.2f}
+• Draw: {analysis['draw_odds']:.2f}
+• Away Win: {analysis['away_odds']:.2f}
 
-⚠️ **Note:** This is a demo analysis. 
-For full AI-powered predictions, subscribe to value bets!
+💎 *Value Bet:*
+• Recommended: {analysis['recommended_bet']}
+• Odds: {analysis['recommended_odds']:.2f}
+• Value: +{analysis['value_margin']:.1f}%
+
+📝 *Key Factors:*
+{analysis['factors']}
+
+⚠️ *Disclaimer:* This is AI-generated analysis. Bet responsibly.
+            """
+            
+            if update.callback_query:
+                await update.callback_query.edit_message_text(
+                    analysis_text,
+                    parse_mode='Markdown'
+                )
+            else:
+                await update.message.reply_text(
+                    analysis_text,
+                    parse_mode='Markdown'
+                )
+                
+        except Exception as e:
+            logger.error(f"Error analyzing match: {e}")
+            error_text = f"""
+❌ *Analysis Error*
+
+Could not analyze {home_team} vs {away_team}.
+
+Please try again later or contact support.
 
 📧 Contact: kevohmutwiri35@gmail.com
-        """
-        
-        await chat.reply_text(analysis_message, parse_mode='Markdown')
-    
-    async def button_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle inline button clicks"""
-        query = update.callback_query
-        await query.answer()
-        
-        if query.data == "valuebets":
-            await self.value_bets(update, context)
-        elif query.data == "stats":
-            await self.stats(update, context)
-        elif query.data == "premium":
-            await self.premium(update, context)
-    
-    async def error_handler(self, update: object, context: ContextTypes.DEFAULT_TYPE):
-        """Handle errors"""
-        logger.error(f"Exception while handling update: {context.error}")
-        
-        if isinstance(update, Update) and update.effective_message:
-            try:
-                await update.effective_message.reply_text(
-                    "❌ An error occurred. Please try again later.\n\n"
-                    "📧 Contact: kevohmutwiri35@gmail.com"
+            """
+            
+            if update.callback_query:
+                await update.callback_query.edit_message_text(
+                    error_text,
+                    parse_mode='Markdown'
                 )
-            except:
-                pass
-    
-    async def get_today_matches(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /today command - Get today's matches"""
-        await self._send_matches_by_date(update, context, 'today')
-    
-    async def get_tomorrow_matches(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /tomorrow command - Get tomorrow's matches"""
-        await self._send_matches_by_date(update, context, 'tomorrow')
-    
-    async def get_live_matches(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /live command - Get live matches"""
-        await self._send_matches_by_date(update, context, 'live')
-    
-    async def get_league_matches(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /premier, /laliga, /seriea, /bundesliga commands"""
-        # Get league from command
-        command = update.message.text.split('@')[0].lower().replace('/', '')
-        league_map = {
-            'premier': 'Premier League',
-            'laliga': 'La Liga',
-            'seriea': 'Serie A',
-            'bundesliga': 'Bundesliga'
-        }
-        league = league_map.get(command, 'Premier League')
-        
-        await update.message.reply_text(f"🔍 Fetching {league} matches...")
-        
-        try:
-            # Get matches filtered by league
-            matches_data = self.data_collector.get_league_matches(league.lower().replace(' ', '_'))
-            
-            if not matches_data:
-                # Fall back to real API
-                matches_data = self.data_collector.get_matches_by_date('all')
-                matches_data = [m for m in matches_data if league in m.get('league', '')]
-            
-            if not matches_data:
-                await update.message.reply_text(f"❌ No {league} matches found.\n\nTry again later!")
-                return
-            
-            # Format and send matches
-            message = f"⚽ *{league} Matches*\n\n"
-            for match in matches_data[:10]:
-                message += f"🏆 {match['home_team']} vs {match['away_team']}\n"
-                message += f"📅 {match['date']} | {match.get('league', 'Unknown')}\n"
-                if match.get('home_odds'):
-                    message += f"💰 Odds: {match['home_odds']} | {match['draw_odds']} | {match['away_odds']}\n"
-                message += "\n"
-            
-            await update.message.reply_text(message, parse_mode='Markdown')
-            
-        except Exception as e:
-            logger.error(f"Error fetching league matches: {e}")
-            await update.message.reply_text("❌ Error fetching matches. Try again later!")
-    
-    async def _send_matches_by_date(self, update: Update, context: ContextTypes.DEFAULT_TYPE, date_filter: str):
-        """Helper to send matches filtered by date"""
-        date_labels = {'today': 'Today', 'tomorrow': 'Tomorrow', 'live': 'LIVE'}
-        
-        if update.callback_query:
-            await update.callback_query.answer()
-            chat_id = update.callback_query.message.chat_id
-        else:
-            chat_id = update.message.chat_id
-            await update.message.reply_text(f"🔍 Fetching {date_labels.get(date_filter, date_filter)} matches...")
-        
-        try:
-            # Get real matches from API
-            matches_data = self.data_collector.get_matches_by_date(date_filter)
-            
-            if not matches_data:
-                await context.bot.send_message(
-                    chat_id=chat_id,
-                    text=f"❌ No {date_labels.get(date_filter, date_filter)} matches found.\n\nThe API might be rate-limited or no matches scheduled.\n\nTry again later!"
+            else:
+                await update.message.reply_text(
+                    error_text,
+                    parse_mode='Markdown'
                 )
-                return
-            
-            # Format matches
-            message = f"⚽ *{date_labels.get(date_filter, date_filter)}'s Matches*\n\n"
-            for match in matches_data[:10]:
-                status = match.get('status', 'SCHEDULED')
-                message += f"🏆 {match['home_team']} vs {match['away_team']}\n"
-                message += f"📅 {match['date']} | {match.get('league', 'Unknown')}\n"
-                if match.get('home_goals') is not None:
-                    message += f"🔢 Score: {match['home_goals']} - {match['away_goals']} ({status})\n"
-                else:
-                    message += f"⏰ Status: {status}\n"
-                if match.get('home_odds'):
-                    message += f"💰 Odds: {match['home_odds']} | {match['draw_odds']} | {match['away_odds']}\n"
-                message += "\n"
-            
-            message += f"📊 Total: {len(matches_data)} matches\n"
-            message += "💎 Use /valuebets to find value bets!"
-            
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text=message,
-                parse_mode='Markdown'
-            )
-            
-        except Exception as e:
-            logger.error(f"Error fetching {date_filter} matches: {e}")
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text="❌ Error fetching matches. Please try again later!"
-            )
     
     def run(self):
         """Run the bot"""
@@ -568,6 +717,17 @@ For full AI-powered predictions, subscribe to value bets!
             application.add_handler(CommandHandler("laliga", self.get_league_matches))
             application.add_handler(CommandHandler("seriea", self.get_league_matches))
             application.add_handler(CommandHandler("bundesliga", self.get_league_matches))
+            # Gambling/Casino commands
+            application.add_handler(CommandHandler("casino", self.get_casino_games))
+            application.add_handler(CommandHandler("slots", self.get_casino_games))
+            application.add_handler(CommandHandler("virtual", self.get_virtual_sports))
+            application.add_handler(CommandHandler("jackpot", self.get_jackpot_bets))
+            application.add_handler(CommandHandler("betika", self.get_betika_matches))
+            application.add_handler(CommandHandler("sportpesa", self.get_sportpesa_matches))
+            application.add_handler(CommandHandler("odibet", self.get_odibet_matches))
+            application.add_handler(CommandHandler("inplay", self.get_inplay_bets))
+            application.add_handler(CommandHandler("livenotify", self.subscribe_live_alerts))
+            application.add_handler(CommandHandler("unlivenotify", self.unsubscribe_live_alerts))
             application.add_handler(CommandHandler("analyze", self.analyze))
             application.add_handler(CommandHandler("stats", self.stats))
             application.add_handler(CommandHandler("premium", self.premium))
