@@ -1386,6 +1386,93 @@ def train_model():
             'error': str(e)
         }), 500
 
+# ==================== LIVE MATCH ENDPOINTS ====================
+
+from live_tracker import LiveMatchTracker
+
+live_tracker = LiveMatchTracker()
+
+@app.route('/api/live-matches')
+@rate_limit('api')
+def get_live_matches():
+    """API endpoint to get live matches"""
+    try:
+        matches = live_tracker.get_live_matches()
+        
+        return jsonify({
+            'success': True,
+            'data': matches,
+            'count': len(matches),
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/inplay-bets')
+@rate_limit('api')
+def get_inplay_bets():
+    """API endpoint to get in-play betting opportunities"""
+    try:
+        opportunities = live_tracker.get_inplay_bets()
+        
+        return jsonify({
+            'success': True,
+            'data': opportunities,
+            'count': len(opportunities),
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/live-match/<match_id>')
+@rate_limit('api')
+def get_match_details(match_id):
+    """API endpoint to get specific match details"""
+    try:
+        match = live_tracker.get_match_details(match_id)
+        
+        if not match:
+            return jsonify({
+                'success': False,
+                'error': 'Match not found'
+            }), 404
+        
+        return jsonify({
+            'success': True,
+            'data': match
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/live-odds/<match_id>')
+@rate_limit('api')
+def get_live_odds(match_id):
+    """API endpoint to get live odds changes"""
+    try:
+        odds_changes = live_tracker.get_live_odds_change(match_id)
+        
+        return jsonify({
+            'success': True,
+            'data': odds_changes,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+# ==================== END LIVE MATCH ENDPOINTS ====================
+
 if __name__ == '__main__':
     print("Starting AI Betting Dashboard...")
     print("Dashboard will be available at: http://localhost:5000")

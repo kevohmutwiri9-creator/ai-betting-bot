@@ -125,6 +125,46 @@
                 </div>
             </section>
 
+            <!-- Live Matches Section -->
+            <section id="liveMatchesSection" class="mb-8">
+                <div class="bg-gray-800 rounded-lg p-6">
+                    <h2 class="text-xl font-bold mb-4 flex items-center">
+                        <i class="fas fa-broadcast-tower text-red-500 mr-2"></i>
+                        Live Matches
+                        <span id="liveMatchCount" class="ml-2 bg-red-600 text-white text-xs px-2 py-1 rounded-full">0</span>
+                        <button onclick="loadLiveMatches()" class="ml-auto bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-sm transition">
+                            <i class="fas fa-sync-alt mr-1"></i>Refresh
+                        </button>
+                    </h2>
+                    <div id="liveMatchesContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="text-center text-gray-400 py-8 col-span-2">
+                            <i class="fas fa-spinner fa-spin text-2xl mb-4"></i>
+                            <p>Loading live matches...</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- In-Play Bets Section -->
+            <section id="inPlayBetsSection" class="mb-8">
+                <div class="bg-gray-800 rounded-lg p-6">
+                    <h2 class="text-xl font-bold mb-4 flex items-center">
+                        <i class="fas fa-bolt text-yellow-500 mr-2"></i>
+                        In-Play Betting Opportunities
+                        <span id="inPlayCount" class="ml-2 bg-yellow-600 text-white text-xs px-2 py-1 rounded-full">0</span>
+                        <button onclick="loadInPlayBets()" class="ml-auto bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-sm transition">
+                            <i class="fas fa-sync-alt mr-1"></i>Refresh
+                        </button>
+                    </h2>
+                    <div id="inPlayBetsContainer" class="grid grid-cols-1 gap-4">
+                        <div class="text-center text-gray-400 py-8">
+                            <i class="fas fa-spinner fa-spin text-2xl mb-4"></i>
+                            <p>Loading in-play betting opportunities...</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <!-- Main Content Grid -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <!-- Value Bets Section -->
@@ -489,6 +529,8 @@
                 // Load initial data
                 loadStatistics();
                 loadValueBets();
+                loadLiveMatches();
+                loadInPlayBets();
                 initPerformanceChart();
                 updateLastRefreshTime();
                 
@@ -498,6 +540,150 @@
                 console.log('🚀 Dashboard initialized with auto-refresh');
             }
         });
+
+        // ==================== LIVE MATCHES ====================
+        
+        // Load live matches
+        async function loadLiveMatches() {
+            try {
+                const response = await fetch('/api/live-matches');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const container = document.getElementById('liveMatchesContainer');
+                    const countBadge = document.getElementById('liveMatchCount');
+                    
+                    if (countBadge) {
+                        countBadge.textContent = data.count || 0;
+                    }
+                    
+                    if (container && data.data && data.data.length > 0) {
+                        container.innerHTML = formatLiveMatches(data.data);
+                    } else if (container) {
+                        container.innerHTML = `
+                            <div class="text-center text-gray-400 py-8 col-span-2">
+                                <i class="fas fa-futbol text-4xl mb-4"></i>
+                                <p>No live matches at the moment</p>
+                                <p class="text-sm mt-2">Check back during match hours</p>
+                            </div>
+                        `;
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading live matches:', error);
+            }
+        }
+        
+        // Format live matches for display
+        function formatLiveMatches(matches) {
+            return matches.map(match => `
+                <div class="bg-gray-700 rounded-lg p-4 border border-red-500 hover:border-red-400 transition">
+                    <div class="flex justify-between items-center mb-3">
+                        <span class="text-xs bg-red-600 text-white px-2 py-1 rounded animate-pulse">
+                            <i class="fas fa-circle text-xs mr-1"></i>LIVE ${match.time}
+                        </span>
+                        <span class="text-xs bg-gray-600 text-white px-2 py-1 rounded">
+                            ${match.league}
+                        </span>
+                    </div>
+                    <div class="flex justify-between items-center mb-3">
+                        <div class="text-center flex-1">
+                            <p class="font-bold text-white">${match.home_team}</p>
+                            <p class="text-2xl font-bold text-green-400">${match.home_score}</p>
+                        </div>
+                        <div class="text-center px-4">
+                            <p class="text-gray-400 text-sm">VS</p>
+                        </div>
+                        <div class="text-center flex-1">
+                            <p class="font-bold text-white">${match.away_team}</p>
+                            <p class="text-2xl font-bold text-green-400">${match.away_score}</p>
+                        </div>
+                    </div>
+                    <div class="border-t border-gray-600 pt-3 mt-3">
+                        <div class="flex justify-between text-sm mb-2">
+                            <span class="text-gray-400">Home: ${match.home_odds}</span>
+                            <span class="text-gray-400">Draw: ${match.draw_odds}</span>
+                            <span class="text-gray-400">Away: ${match.away_odds}</span>
+                        </div>
+                        <div class="grid grid-cols-3 gap-2 text-xs text-gray-400">
+                            <div class="bg-gray-600 rounded px-2 py-1 text-center">
+                                <i class="fas fa-square mr-1"></i>Corners: ${match.home_corners}-${match.away_corners}
+                            </div>
+                            <div class="bg-gray-600 rounded px-2 py-1 text-center">
+                                <i class="fas fa-crosshairs mr-1"></i>Shots: ${match.shots_on_target?.home || 0}-${match.shots_on_target?.away || 0}
+                            </div>
+                            <div class="bg-gray-600 rounded px-2 py-1 text-center">
+                                <i class="fas fa-chart-pie mr-1"></i>Possession: ${match.possession?.home || 50}%-${match.possession?.away || 50}%
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // Load in-play betting opportunities
+        async function loadInPlayBets() {
+            try {
+                const response = await fetch('/api/inplay-bets');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const container = document.getElementById('inPlayBetsContainer');
+                    const countBadge = document.getElementById('inPlayCount');
+                    
+                    if (countBadge) {
+                        countBadge.textContent = data.count || 0;
+                    }
+                    
+                    if (container && data.data && data.data.length > 0) {
+                        container.innerHTML = formatInPlayBets(data.data);
+                    } else if (container) {
+                        container.innerHTML = `
+                            <div class="text-center text-gray-400 py-8">
+                                <i class="fas fa-bolt text-4xl mb-4"></i>
+                                <p>No in-play betting opportunities at the moment</p>
+                            </div>
+                        `;
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading in-play bets:', error);
+            }
+        }
+        
+        // Format in-play bets for display
+        function formatInPlayBets(opportunities) {
+            const typeIcons = {
+                'LATE_GOAL': '⚽',
+                'COMEBACK': '🔥',
+                'OVER_GOALS': '📈',
+                'CORNERS': '🏐'
+            };
+            
+            return opportunities.map(opp => `
+                <div class="bg-gray-700 rounded-lg p-4 border border-yellow-500 hover:border-yellow-400 transition">
+                    <div class="flex justify-between items-start mb-3">
+                        <div class="flex items-center">
+                            <span class="text-2xl mr-2">${typeIcons[opp.type] || '💎'}</span>
+                            <div>
+                                <span class="text-xs bg-yellow-600 text-white px-2 py-1 rounded">
+                                    ${opp.type.replace('_', ' ')}
+                                </span>
+                                <p class="font-bold text-white mt-1">${opp.match}</p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-2xl font-bold text-green-400">@ ${opp.odds}</p>
+                            <p class="text-sm text-yellow-400">${opp.recommendation}</p>
+                        </div>
+                    </div>
+                    <div class="bg-gray-600 rounded px-3 py-2 text-sm text-gray-300">
+                        <i class="fas fa-lightbulb text-yellow-500 mr-2"></i>
+                        ${opp.reason}
+                    </div>
+                </div>
+            `).join('');
+        }
 
         // API helper function
         async function authenticatedFetch(url, options = {}) {
